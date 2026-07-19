@@ -386,7 +386,7 @@ function JoinScreen({onJoin}) {
       <Logo />
       <div className="panel">
         <div className="label">ユーザーネーム</div>
-        <input type="text" maxLength={12} placeholder="例: もと先生"
+        <input type="text" maxLength={12} placeholder="ユーザー名"
           value={name} onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && ok) onJoin(name.trim()); }} />
         <div style={{height: 10}} />
