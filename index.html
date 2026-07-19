@@ -93,9 +93,9 @@
   .status{display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;}
   .round-chip{background:var(--ink); color:#fff; font-weight:800; font-size:13px;
     padding:5px 12px; border-radius:999px;}
-  .hearts{font-size:22px; letter-spacing:2px;}
-  .hearts .on{color:var(--pink);}
-  .hearts .off{color:#C9DBD7;}
+  .round-chip.miss{background:var(--red);}
+  .rank{flex:0 0 22px; height:22px; border-radius:50%; background:var(--teal); color:#fff;
+    font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center;}
 
   /* お題カード */
   .theme-card{background:var(--yellow); text-align:center; padding:16px 14px;}
@@ -135,14 +135,16 @@
 
   /* プレイヤーリスト */
   .plist{display:flex; flex-direction:column; gap:8px;}
-  .prow{display:flex; align-items:center; gap:8px; border:2px solid rgba(23,49,46,.18);
+  .prow{display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; border:2px solid rgba(23,49,46,.18);
     border-radius:12px; padding:8px 10px; background:#FBFDFC;}
   .prow.me{border-color:var(--teal); background:#EFFAF7;}
   .prow .nm{font-weight:800; font-size:14px;}
   .prow .host-mark{font-size:10px; font-weight:800; background:var(--yellow);
     border:2px solid var(--ink); border-radius:6px; padding:1px 6px;}
-  .prow .word{flex:1; font-size:13px; font-weight:700; color:var(--teal-dk);
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .wordline{flex-basis:100%; font-size:14px; font-weight:700; color:var(--ink);
+    background:#FFF6DC; border:2px solid rgba(23,49,46,.15); border-radius:10px;
+    padding:6px 10px; margin-top:2px; line-height:1.45; word-break:break-word;}
+  .wordline .q{color:var(--teal-dk); font-weight:800; margin-right:4px;}
   .prow .st{font-size:11px; font-weight:800; padding:3px 8px; border-radius:999px;}
   .st.wait{background:#E3EEEB; color:var(--muted);}
   .st.done{background:var(--ink); color:#fff;}
@@ -226,10 +228,9 @@ const EMPTY_ROOM = {
   result: null,          // clear | fail
   theme: "",
   round: 0,
-  lives: 3,
-  maxLives: 3,
   hostId: "",
   players: {},           // {pid: {name, joined, num, played, failed, word}}
+  order: [],             // 作戦ボード: 予想順(小さい順)のpid配列
   board: []              // [{pid, name, num, failed}] 出された順
 };
 
@@ -290,7 +291,7 @@ const actions = {
   becomeHost() {
     return txRoom((d) => { d.hostId = pid; return d; });
   },
-  deal(theme, lifeSetting) {
+  deal(theme) {
     return txRoom((d) => {
       const ids = Object.keys(d.players || {});
       if (ids.length < 2) { alert("2人以上で開始できます"); return null; }
@@ -299,9 +300,8 @@ const actions = {
         const p = d.players[id];
         p.num = pool[i]; p.played = false; p.failed = false; p.word = "";
       });
-      if (lifeSetting) d.maxLives = lifeSetting;
-      if (d.lives == null || d.lives <= 0 || d.lives > d.maxLives) d.lives = d.maxLives;
       d.theme = theme;
+      d.order = sortedPlayers(d.players).map((p) => p.id);
       d.phase = "playing";
       d.result = null;
       d.board = [];
@@ -321,21 +321,38 @@ const actions = {
         p.played = true; p.failed = true;
         d.board.push({pid: id, name: p.name, num: p.num, failed: true});
       });
-      d.lives = Math.max(0, (d.lives || 0) - skipped.length);
       me.played = true;
       d.board.push({pid: pid, name: me.name, num: me.num, failed: false});
       const allDone = Object.values(d.players).every((p) => p.num == null || p.played);
-      if (d.lives <= 0) { d.phase = "result"; d.result = "fail"; }
-      else if (allDone) { d.phase = "result"; d.result = "clear"; }
+      if (allDone) {
+        d.phase = "result";
+        d.result = d.board.some((c) => c.failed) ? "miss" : "clear";
+      }
       return d;
     });
   },
-  recoverLives() {
-    return txRoom((d) => { d.lives = d.maxLives || 3; return d; });
+  moveOrder(id, dir) {
+    return txRoom((d) => {
+      if (d.phase !== "playing") return null;
+      const alive = (d.order || []).filter((x) => {
+        const p = d.players && d.players[x];
+        return p && p.num != null && !p.played;
+      });
+      Object.keys(d.players || {}).forEach((x) => {
+        const p = d.players[x];
+        if (p.num != null && !p.played && alive.indexOf(x) < 0) alive.push(x);
+      });
+      const i = alive.indexOf(id);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= alive.length) return null;
+      const tmp = alive[i]; alive[i] = alive[j]; alive[j] = tmp;
+      d.order = alive;
+      return d;
+    });
   },
   toLobby() {
     return txRoom((d) => {
-      d.phase = "lobby"; d.result = null; d.board = []; d.theme = "";
+      d.phase = "lobby"; d.result = null; d.board = []; d.theme = ""; d.order = [];
       Object.values(d.players || {}).forEach((p) => {
         p.num = null; p.played = false; p.failed = false; p.word = "";
       });
@@ -386,7 +403,7 @@ function JoinScreen({onJoin}) {
       <Logo />
       <div className="panel">
         <div className="label">ユーザーネーム</div>
-        <input type="text" maxLength={12} placeholder="ユーザー名"
+        <input type="text" maxLength={12} placeholder="例: もと先生"
           value={name} onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && ok) onJoin(name.trim()); }} />
         <div style={{height: 10}} />
@@ -401,14 +418,6 @@ function JoinScreen({onJoin}) {
       </div>
     </div>
   );
-}
-
-function Hearts({lives, maxLives}) {
-  const items = [];
-  for (let i = 0; i < (maxLives || 3); i++) {
-    items.push(<span key={i} className={i < lives ? "on" : "off"}>{i < lives ? "♥" : "♡"}</span>);
-  }
-  return <div className="hearts">{items}</div>;
 }
 
 function ThemeCard({theme}) {
@@ -493,6 +502,40 @@ function WordInput({me}) {
   );
 }
 
+function OrderBoard({room}) {
+  if (room.phase !== "playing") return null;
+  const alive = [];
+  (room.order || []).forEach((id) => {
+    const p = room.players && room.players[id];
+    if (p && p.num != null && !p.played) alive.push({id: id, ...p});
+  });
+  Object.entries(room.players || {}).forEach(([id, p]) => {
+    if (p.num != null && !p.played && !alive.some((a) => a.id === id)) alive.push({id: id, ...p});
+  });
+  if (alive.length < 2) return null;
+  return (
+    <div className="panel">
+      <div className="label">作戦ボード(小さい順の予想)</div>
+      <div className="plist">
+        {alive.map((p, i) => (
+          <div key={p.id} className={"prow" + (p.id === pid ? " me" : "")}>
+            <span className="rank">{i + 1}</span>
+            <span className="nm">{p.name}</span>
+            <span className="word">{p.word ? "「" + p.word + "」" : ""}</span>
+            <span className="sp" />
+            <button className="btn sm ghost" disabled={i === 0}
+              onClick={() => actions.moveOrder(p.id, -1)}>↑</button>
+            <button className="btn sm ghost" disabled={i === alive.length - 1}
+              onClick={() => actions.moveOrder(p.id, 1)}>↓</button>
+          </div>
+        ))}
+      </div>
+      <div style={{height: 6}} />
+      <p className="note">誰でも並べ替えOK。全員の画面に同期されます。出した人は自動で消えます。</p>
+    </div>
+  );
+}
+
 function ThreadBoard({board}) {
   return (
     <div className="panel thread-panel">
@@ -540,9 +583,11 @@ function PlayerList({room}) {
             <div key={p.id} className={"prow" + (p.id === pid ? " me" : "")}>
               <span className="nm">{p.name}</span>
               {p.id === room.hostId && <span className="host-mark">HOST</span>}
-              <span className="word">{p.word ? "「" + p.word + "」" : ""}</span>
               <span className="sp" />
               {st}
+              {p.word && (
+                <div className="wordline"><span className="q">💬</span>{p.word}</div>
+              )}
             </div>
           );
         })}
@@ -553,31 +598,22 @@ function PlayerList({room}) {
 
 function ResultBanner({room}) {
   if (room.phase !== "result") return null;
-  const clear = room.result === "clear";
-  const remain = sortedPlayers(room.players)
-    .filter((p) => p.num != null && !p.played)
-    .sort((a, b) => a.num - b.num);
+  const miss = (room.board || []).filter((c) => c.failed).length;
+  const perfect = miss === 0;
   return (
-    <div className={"panel result " + (clear ? "clear" : "fail")}>
-      <div className="big-txt">{clear ? "クリア!🎉" : "しっぱい…💔"}</div>
+    <div className={"panel result " + (perfect ? "clear" : "fail")}>
+      <div className="big-txt">{perfect ? "パーフェクト!🎉" : "クリア!"}</div>
       <div className="desc">
-        {clear
-          ? "全員のカードを昇順に出し切りました!"
-          : "ライフが尽きました。"}
+        {perfect
+          ? "全員のカードを順番どおりに出し切りました!"
+          : "ミス " + miss + " 回。次はパーフェクトを狙おう!"}
       </div>
-      {!clear && remain.length > 0 && (
-        <div className="desc" style={{marginTop: 8}}>
-          残っていたカード: {remain.map((p) => p.name + "=" + p.num).join(" / ")}
-        </div>
-      )}
     </div>
   );
 }
 
 function HostPanel({room, isHost}) {
   const [theme, setTheme] = useState("");
-  const [life, setLife] = useState(room.maxLives || 3);
-  useEffect(() => { setLife(room.maxLives || 3); }, [room.maxLives]);
   const [dangerOpen, setDangerOpen] = useState(false);
 
   if (!isHost) {
@@ -608,26 +644,21 @@ function HostPanel({room, isHost}) {
         <React.Fragment>
           <input type="text" maxLength={60} placeholder="お題を入力(例: コンビニで人気の商品)"
             value={theme} onChange={(e) => setTheme(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && canDeal) { actions.deal(theme.trim(), life); setTheme(""); } }} />
+            onKeyDown={(e) => { if (e.key === "Enter" && canDeal) { actions.deal(theme.trim()); setTheme(""); } }} />
           <div style={{height: 8}} />
           <div className="row wrap">
-            <span className="label" style={{margin: 0}}>ライフ</span>
-            <select value={life} onChange={(e) => setLife(Number(e.target.value))}>
-              {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
             <span className="sp" />
             <button className="btn" disabled={!canDeal}
-              onClick={() => { actions.deal(theme.trim(), life); setTheme(""); }}>
+              onClick={() => { actions.deal(theme.trim()); setTheme(""); }}>
               {dealLabel}
             </button>
           </div>
-          <div style={{height: 8}} />
-          <div className="row wrap">
-            <button className="btn sm ghost" onClick={actions.recoverLives}>ライフ全回復</button>
-            {room.phase === "result" && (
+          {room.phase === "result" && (
+            <React.Fragment>
+              <div style={{height: 8}} />
               <button className="btn sm ghost" onClick={actions.toLobby}>ロビーに戻す</button>
-            )}
-          </div>
+            </React.Fragment>
+          )}
         </React.Fragment>
       )}
       {room.phase === "playing" && (
@@ -654,19 +685,21 @@ function Room({room}) {
   const me = room.players && room.players[pid];
   const isHost = room.hostId === pid;
   const inRound = room.phase === "playing" || room.phase === "result";
+  const missCount = (room.board || []).filter((c) => c.failed).length;
 
   return (
     <div>
       <Logo />
       <div className="status">
         <span className="round-chip">ROUND {room.round || 0}</span>
-        <Hearts lives={room.lives} maxLives={room.maxLives} />
+        {missCount > 0 && <span className="round-chip miss">✕ ミス {missCount}</span>}
       </div>
 
       <ResultBanner room={room} />
       {inRound && <ThemeCard theme={room.theme} />}
       {room.phase === "playing" && <MyCard me={me} phase={room.phase} onPlay={actions.playCard} />}
       {room.phase === "playing" && <WordInput me={me} />}
+      {room.phase === "playing" && <OrderBoard room={room} />}
       {inRound && <ThreadBoard board={room.board} />}
       <PlayerList room={room} />
       <HostPanel room={room} isHost={isHost} />
