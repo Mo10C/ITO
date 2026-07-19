@@ -114,24 +114,16 @@
   .mycard.played-face{background:#E8F0EE; color:var(--muted);}
   .my-side{flex:1; display:flex; flex-direction:column; gap:8px; justify-content:center;}
 
-  /* 糸ボード(シグネチャー) */
-  .thread-panel{padding:14px 10px 6px;}
-  .thread{position:relative; height:168px; margin:6px 4px 0;}
-  .thread::before{content:''; position:absolute; left:0; right:0; top:22px; height:0;
-    border-top:3px dashed var(--teal-dk);}
-  .thread .end{position:absolute; top:12px; font-size:11px; font-weight:800; color:var(--muted);}
-  .thread .end.l{left:0;} .thread .end.r{right:0;}
-  .hang{position:absolute; transform:translateX(-50%); text-align:center; width:46px;}
-  .hang .pin{width:2.5px; background:var(--ink); margin:0 auto;}
-  .hang .chip{border:2.5px solid var(--ink); border-radius:10px; background:#fff;
-    box-shadow:2px 2px 0 rgba(23,49,46,.85); padding:4px 2px 3px;}
-  .hang .chip .n{font-size:17px; font-weight:800; line-height:1;}
-  .hang .chip .who{font-size:9px; font-weight:700; color:var(--muted);
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .hang.ng .chip{background:#FFE1E3; border-color:var(--red); color:var(--red);}
-  .hang.ng .chip .who{color:var(--red);}
-  .thread-empty{position:absolute; left:0; right:0; top:60px; text-align:center;
-    font-size:12px; font-weight:700; color:var(--muted);}
+  /* 出されたカード(小さい順の列) */
+  .cardrow{display:flex; flex-wrap:wrap; gap:8px; align-items:flex-start; padding:4px 2px;}
+  .pcard{width:58px; border:2.5px solid var(--ink); border-radius:10px; background:#fff;
+    box-shadow:2px 2px 0 rgba(23,49,46,.85); text-align:center; padding:7px 2px 5px;}
+  .pcard .n{font-size:21px; font-weight:800; line-height:1;}
+  .pcard .who{font-size:9px; font-weight:700; color:var(--muted);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:3px; padding:0 2px;}
+  .pcard.ng{background:#FFE1E3; border-color:var(--red); color:var(--red);}
+  .pcard.ng .who{color:var(--red);}
+  .cardrow-empty{font-size:12px; font-weight:700; color:var(--muted); padding:10px 4px; text-align:center;}
 
   /* プレイヤーリスト */
   .plist{display:flex; flex-direction:column; gap:8px;}
@@ -171,9 +163,9 @@
   .cfg-err code{background:#FFE8EA; border-radius:6px; padding:1px 6px; font-size:12px;}
 
   @media (prefers-reduced-motion: no-preference){
-    .hang{animation:drop .35s ease-out;}
-    @keyframes drop{from{transform:translateX(-50%) translateY(-14px); opacity:0;}
-      to{transform:translateX(-50%) translateY(0); opacity:1;}}
+    .pcard{animation:drop .3s ease-out;}
+    @keyframes drop{from{transform:translateY(-12px); opacity:0;}
+      to{transform:translateY(0); opacity:1;}}
   }
 </style>
 </head>
@@ -537,30 +529,22 @@ function OrderBoard({room}) {
 }
 
 function ThreadBoard({board}) {
+  const sorted = (board || []).slice().sort((a, b) => a.num - b.num);
   return (
-    <div className="panel thread-panel">
-      <div className="label" style={{paddingLeft: 4}}>出されたカード</div>
-      <div className="thread">
-        <span className="end l">1</span>
-        <span className="end r">100</span>
-        {(!board || board.length === 0) && (
-          <div className="thread-empty">まだカードが出ていません。<br />いちばん小さいと思う人から「出す!」</div>
-        )}
-        {(board || []).map((c, i) => {
-          const left = 6 + (c.num - 1) / 99 * 88; // 端が切れないよう6%〜94%
-          const pinH = (i % 2 === 0) ? 14 : 58;
-          return (
-            <div key={c.pid + "-" + c.num} className={"hang" + (c.failed ? " ng" : "")}
-              style={{left: left + "%", top: "24px"}}>
-              <div className="pin" style={{height: pinH + "px"}} />
-              <div className="chip">
-                <div className="n">{c.failed ? "✕" + c.num : c.num}</div>
-                <div className="who">{c.name}</div>
-              </div>
+    <div className="panel">
+      <div className="label">出されたカード(小さい順)</div>
+      {sorted.length === 0 ? (
+        <div className="cardrow-empty">まだカードが出ていません。<br />いちばん小さいと思う人から「出す!」</div>
+      ) : (
+        <div className="cardrow">
+          {sorted.map((c) => (
+            <div key={c.pid + "-" + c.num} className={"pcard" + (c.failed ? " ng" : "")}>
+              <div className="n">{c.failed ? "✕" + c.num : c.num}</div>
+              <div className="who">{c.name}</div>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
