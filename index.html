@@ -198,8 +198,21 @@ let db = null, roomRef = null;
 if (CONFIG_OK) {
   firebase.initializeApp(firebaseConfig);
   db = firebase.firestore();
-  roomRef = db.collection("ito").doc("main");
 }
+
+/* 部屋の合言葉 → FirestoreドキュメントID */
+function normalizeRoomId(s) {
+  let id = (s || "").trim().replace(/[\/\s]+/g, "-").slice(0, 20);
+  if (id === "." || id === "..") id = "room-" + id.length;
+  return id;
+}
+const initialRoom = (() => {
+  try {
+    const h = decodeURIComponent((location.hash || "").slice(1));
+    if (h) return normalizeRoomId(h);
+    return sessionStorage.getItem("ito_room") || "";
+  } catch (e) { return ""; }
+})();
 
 /* その場限りのプレイヤーID(リロードしても同タブなら維持) */
 const pid = (() => {
@@ -282,6 +295,12 @@ const actions = {
   },
   becomeHost() {
     return txRoom((d) => { d.hostId = pid; return d; });
+  },
+  transferHost(id) {
+    return txRoom((d) => {
+      if (d.players && d.players[id]) d.hostId = id;
+      return d;
+    });
   },
   deal(theme) {
     return txRoom((d) => {
@@ -387,9 +406,11 @@ function ConfigError() {
   );
 }
 
-function JoinScreen({onJoin}) {
+function JoinScreen({defaultRoom, onJoin}) {
   const [name, setName] = useState("");
-  const ok = name.trim().length > 0;
+  const [roomWord, setRoomWord] = useState(defaultRoom || "");
+  const ok = name.trim().length > 0 && normalizeRoomId(roomWord).length > 0;
+  const go = () => { if (ok) onJoin(name.trim(), normalizeRoomId(roomWord)); };
   return (
     <div>
       <Logo />
@@ -397,15 +418,22 @@ function JoinScreen({onJoin}) {
         <div className="label">ユーザーネーム</div>
         <input type="text" maxLength={12} placeholder="例: もと先生"
           value={name} onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && ok) onJoin(name.trim()); }} />
+          onKeyDown={(e) => { if (e.key === "Enter") go(); }} />
         <div style={{height: 10}} />
-        <button className="btn big" disabled={!ok} onClick={() => onJoin(name.trim())}>
-          この名前で参加する
+        <div className="label">部屋の合言葉</div>
+        <input type="text" maxLength={20} placeholder="例: mountain"
+          value={roomWord} onChange={(e) => setRoomWord(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") go(); }} />
+        <div style={{height: 10}} />
+        <button className="btn big" disabled={!ok} onClick={go}>
+          入室する
         </button>
         <hr className="hr" />
         <p className="note">
           アカウント登録は不要。その場限りの名前でOKです。<br />
-          全員が同じこのURLを開けば、同じ部屋につながります。
+          同じ合言葉を入れた人どうしが同じ部屋に入ります。
+          新しい合言葉を入れると、その部屋が自動で作られます。<br />
+          入室後のURL(#合言葉つき)を共有すると、相手は合言葉が入力済みの状態で開けます。
         </p>
       </div>
     </div>
@@ -569,6 +597,11 @@ function PlayerList({room}) {
               {p.id === room.hostId && <span className="host-mark">HOST</span>}
               <span className="sp" />
               {st}
+              {room.hostId === pid && p.id !== pid && (
+                <button className="btn sm ghost" onClick={() => {
+                  if (window.confirm(p.name + " にHOSTを渡しますか?")) actions.transferHost(p.id);
+                }}>HOST譲渡</button>
+              )}
               {p.word && (
                 <div className="wordline"><span className="q">💬</span>{p.word}</div>
               )}
@@ -665,7 +698,7 @@ function HostPanel({room, isHost}) {
 }
 
 /* ============ ルーム画面 ============ */
-function Room({room}) {
+function Room({room, roomId}) {
   const me = room.players && room.players[pid];
   const isHost = room.hostId === pid;
   const inRound = room.phase === "playing" || room.phase === "result";
@@ -675,7 +708,10 @@ function Room({room}) {
     <div>
       <Logo />
       <div className="status">
-        <span className="round-chip">ROUND {room.round || 0}</span>
+        <div className="row">
+          <span className="round-chip" style={{background: "var(--teal-dk)"}}>🏠 {roomId}</span>
+          <span className="round-chip">ROUND {room.round || 0}</span>
+        </div>
         {missCount > 0 && <span className="round-chip miss">✕ ミス {missCount}</span>}
       </div>
 
@@ -699,24 +735,37 @@ function Room({room}) {
 
 /* ============ ルート ============ */
 function App() {
+  const [roomId, setRoomId] = useState(initialRoom);
   const [room, setRoom] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!CONFIG_OK) { setLoading(false); return; }
+    if (!roomId) { setRoom(null); setLoading(false); return; }
+    roomRef = db.collection("ito").doc(roomId);
+    try { sessionStorage.setItem("ito_room", roomId); } catch (e) {}
+    try { history.replaceState(null, "", "#" + encodeURIComponent(roomId)); } catch (e) {}
+    setLoading(true);
     const unsub = roomRef.onSnapshot((snap) => {
       setRoom(snap.exists ? snap.data() : JSON.parse(JSON.stringify(EMPTY_ROOM)));
       setLoading(false);
     }, (err) => { console.error(err); setLoading(false); });
     return unsub;
-  }, []);
+  }, [roomId]);
 
   if (!CONFIG_OK) return <ConfigError />;
   if (loading) return <div><Logo /><div className="panel"><p className="note">接続中…</p></div></div>;
 
-  const joined = room && room.players && room.players[pid];
-  if (!joined) return <JoinScreen onJoin={(name) => actions.join(name)} />;
-  return <Room room={room} />;
+  const joined = roomId && room && room.players && room.players[pid];
+  if (!joined) {
+    return <JoinScreen defaultRoom={roomId}
+      onJoin={(name, rid) => {
+        roomRef = db.collection("ito").doc(rid);
+        actions.join(name);
+        setRoomId(rid);
+      }} />;
+  }
+  return <Room room={room} roomId={roomId} />;
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
