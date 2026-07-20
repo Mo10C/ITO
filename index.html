@@ -416,12 +416,12 @@ function JoinScreen({defaultRoom, onJoin}) {
       <Logo />
       <div className="panel">
         <div className="label">ユーザーネーム</div>
-        <input type="text" maxLength={12} placeholder="例: もと先生"
+        <input type="text" maxLength={12} placeholder="例:もと"
           value={name} onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") go(); }} />
         <div style={{height: 10}} />
         <div className="label">部屋の合言葉</div>
-        <input type="text" maxLength={20} placeholder="例: mountain"
+        <input type="text" maxLength={20} placeholder="例: あいことば"
           value={roomWord} onChange={(e) => setRoomWord(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") go(); }} />
         <div style={{height: 10}} />
@@ -515,7 +515,7 @@ function WordInput({me}) {
   if (!me || me.num == null || me.played) return null;
   return (
     <div className="panel">
-      <div className="label">たとえワード(数字の大きさをお題で表現)</div>
+      <div className="label">たとえワード</div>
       <input type="text" maxLength={30} placeholder="例: おにぎりの具ならシャケ"
         value={w} onChange={(e) => onChange(e.target.value)} />
     </div>
@@ -535,7 +535,7 @@ function OrderBoard({room}) {
   if (alive.length < 2) return null;
   return (
     <div className="panel">
-      <div className="label">作戦ボード(小さい順の予想)</div>
+      <div className="label">作戦ボード</div>
       <div className="plist">
         {alive.map((p, i) => (
           <div key={p.id} className={"prow" + (p.id === pid ? " me" : "")}>
