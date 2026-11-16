@@ -78,6 +78,7 @@
   .btn.warn{background:var(--red);}
   .btn.sm{font-size:12px; padding:6px 10px; border-radius:9px; border-width:2px; box-shadow:2px 2px 0 rgba(23,49,46,.85);}
   .btn.big{font-size:19px; padding:14px 20px; width:100%;}
+  a.btn{text-decoration:none; display:inline-block; white-space:nowrap;}
 
   input[type=text], select{
     font-family:inherit; font-size:16px; font-weight:700;
@@ -739,6 +740,8 @@ function JoinScreen({defaultRoom, onJoin}) {
           <div className="panel">
             <div className="label">あそびかた</div>
             <HowTo />
+            <div style={{height: 12}} />
+            <HowToLink big />
           </div>
         </div>
         <div className="panel big-form">
@@ -768,6 +771,15 @@ function JoinScreen({defaultRoom, onJoin}) {
   );
 }
 
+/* 遊び方ページ(howto.html)を別タブで開く */
+function HowToLink({big}) {
+  return (
+    <a className={"btn ghost" + (big ? "" : " sm")} href="howto.html" target="_blank">
+      📖 遊び方{big ? "をくわしく見る" : ""}
+    </a>
+  );
+}
+
 function RoomChips({room, roomId}) {
   return (
     <React.Fragment>
@@ -793,6 +805,7 @@ function TopBar({room, roomId, title}) {
       <RoomChips room={room} roomId={roomId} />
       {title && <span className="topbar-title">{title}</span>}
       <span className="sp" />
+      <HowToLink />
       <LeaveButton />
     </div>
   );
@@ -815,6 +828,7 @@ function ThemeBar({room, roomId}) {
       </div>
       <div className="play-side right">
         {missCount > 0 && <span className="round-chip miss">✕ ミス {missCount}</span>}
+        <HowToLink />
       </div>
     </div>
   );
