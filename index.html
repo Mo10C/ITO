@@ -9,7 +9,7 @@
   itoルーム — みんなで1つの部屋で遊ぶ ito風 協力ゲーム
   ・単一HTML / React (Babel standalone) / Firestore リアルタイム同期
   ・常設1部屋方式: URLを開いて名前を入れるだけで参加
-  ・お題は毎ラウンド ホストが手入力
+  ・お題は「各プレイヤーの候補からルーレット」または「ホストが手入力」
 
   ▼セットアップ手順
   1. Firebaseコンソールで(既存プロジェクトでOK) Firestore を有効化
@@ -57,7 +57,7 @@
     color:var(--ink);
     min-height:100vh;
   }
-  #root{max-width:600px; margin:0 auto; padding:14px 14px 90px;}
+  #root{max-width:none; margin:0; padding:0;}
 
   .logo{display:flex; align-items:baseline; gap:8px; margin:6px 0 14px;}
   .logo h1{font-size:30px; font-weight:800; margin:0; letter-spacing:.02em;}
@@ -131,7 +131,7 @@
     border-radius:12px; padding:8px 10px; background:#FBFDFC;}
   .prow.me{border-color:var(--teal); background:#EFFAF7;}
   .prow .nm{font-weight:800; font-size:14px;}
-  .prow .host-mark{font-size:10px; font-weight:800; background:var(--yellow);
+  .prow .host-mark, .mrow .host-mark{font-size:10px; font-weight:800; background:var(--yellow);
     border:2px solid var(--ink); border-radius:6px; padding:1px 6px;}
   .wordline{flex-basis:100%; font-size:14px; font-weight:700; color:var(--ink);
     background:#FFF6DC; border:2px solid rgba(23,49,46,.15); border-radius:10px;
@@ -142,6 +142,8 @@
   .st.done{background:var(--ink); color:#fff;}
   .st.ng{background:var(--red); color:#fff;}
   .st.nonum{background:#fff; color:var(--muted); border:1.5px dashed var(--muted);}
+  .st.bot{background:#EEE8FF; color:#5B3FB0;}
+  .st.prop{background:#FFF6DC; color:#8A6A00; border:1.5px solid rgba(138,106,0,.3);}
 
   /* 結果バナー */
   .result{padding:18px 14px; text-align:center;}
@@ -159,13 +161,171 @@
   .note{font-size:11.5px; font-weight:700; color:var(--muted); line-height:1.6;}
   .foot{text-align:center; font-size:11px; font-weight:700; color:var(--muted); margin-top:18px;}
 
+  /* お題候補 */
+  .prop-row{display:flex; align-items:flex-start; gap:8px; border:2px solid rgba(23,49,46,.18);
+    border-radius:12px; padding:8px 10px; background:#FBFDFC;}
+  .prop-row.me{border-color:var(--teal); background:#EFFAF7;}
+  .prop-row .ptxt{flex:1; font-size:14px; font-weight:800; line-height:1.4; word-break:break-word;}
+  .prop-row .pby{font-size:10.5px; font-weight:700; color:var(--muted);}
+  .prop-row.sel{align-items:center; padding:12px 12px;}
+  .prop-row.sel .ptxt{font-size:18px;}
+  .prop-row.sel .pby{font-size:11.5px;}
+
+  /* お題ルーレット */
+  .rl-window{background:var(--yellow); border:var(--bd); border-radius:14px; padding:22px 14px;
+    min-height:180px; text-align:center; display:flex; flex-direction:column; justify-content:center; overflow:hidden;}
+  .rl-window.hit{background:var(--pink); color:#fff;}
+  .rl-txt{font-size:28px; font-weight:800; line-height:1.35; word-break:break-word;}
+  .rl-by{font-size:12px; font-weight:800; color:rgba(23,49,46,.6); margin-top:6px;}
+  .rl-window.hit .rl-by{color:rgba(255,255,255,.9);}
+  .theme-card .by{font-size:11px; font-weight:800; color:rgba(23,49,46,.6); margin-top:4px;}
+
+  /* ===== 全画面共通(PC・スクロールなし) ===== */
+  .screen{height:100vh; height:100dvh; max-width:1600px; margin:0 auto; padding:14px 18px 18px;
+    display:flex; flex-direction:column; gap:14px; overflow:hidden;}
+  .screen .panel{margin:0;}
+  .center-screen{align-items:center; justify-content:center;}
+  .topbar{display:flex; align-items:center; gap:10px; flex:0 0 auto; min-height:48px;}
+  .topbar .logo{margin:0 8px 0 0;}
+  .topbar-title{font-size:15px; font-weight:800; color:var(--ink); margin-left:6px;}
+  .logo.lg{flex-direction:column; align-items:flex-start; gap:6px; margin:0;}
+  .logo.lg h1{font-size:72px; line-height:1;}
+  .logo.lg .sub{font-size:16px;}
+  .big-form input[type=text]{font-size:19px; padding:13px 15px;}
+  .side-ctrl{display:flex; flex-direction:column; gap:10px; min-height:0;}
+  .watch-msg{font-size:18px; font-weight:800; text-align:center; line-height:1.6;
+    padding:24px 10px; color:var(--ink);}
+
+  /* スタート画面 */
+  .join-grid{flex:1; min-height:0; width:100%; max-width:1120px; margin:0 auto; display:grid;
+    grid-template-columns:1.1fr .9fr; gap:48px; align-items:center;}
+
+  /* あそびかた */
+  .howto{display:flex; flex-direction:column; gap:12px;}
+  .howto .step{display:flex; gap:12px; align-items:flex-start;}
+  .howto .sn{flex:0 0 30px; height:30px; border-radius:50%; background:var(--ink); color:#fff;
+    font-weight:800; font-size:14px; display:flex; align-items:center; justify-content:center;}
+  .howto .st-t{font-size:15px; font-weight:800;}
+  .howto .st-d{font-size:12.5px; font-weight:700; color:var(--muted); line-height:1.55;}
+
+  /* メインメニュー / お題一覧 */
+  .grid-lobby{flex:1; min-height:0; display:grid; gap:16px;
+    grid-template-columns:minmax(260px, 27%) minmax(0, 1fr) minmax(300px, 31%);}
+  .grid-select{flex:1; min-height:0; display:grid; gap:16px;
+    grid-template-columns:minmax(0, 1fr) minmax(280px, 26%);}
+  .tiles{display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:14px; align-content:start;}
+  .tile{border:var(--bd); border-radius:14px; background:#fff; box-shadow:3px 3px 0 rgba(23,49,46,.85);
+    padding:16px; display:flex; flex-direction:column; gap:6px; min-height:120px;}
+  .tile-txt{font-size:23px; font-weight:800; line-height:1.3; word-break:break-word; flex:1;}
+  .tile-by{font-size:12px; font-weight:800; color:var(--muted);}
+  .tile .btn{align-self:flex-end;}
+  .roulette-btn{font-size:22px; padding:26px 16px; line-height:1.4;}
+  .tile{transition:background .08s, color .08s, opacity .3s, transform .08s;}
+  .tile.on{background:var(--ink); color:#fff; transform:translateY(-3px);}
+  .tile.on .tile-by{color:rgba(255,255,255,.75);}
+  .tile.win{background:var(--pink); color:#fff; transform:translateY(-3px); box-shadow:5px 5px 0 rgba(23,49,46,.85);}
+  .tile.win .tile-by{color:rgba(255,255,255,.9);}
+  .tile.dim{opacity:.35;}
+
+  /* 結果画面 */
+  .arow{display:flex; align-items:center; gap:14px; border:2.5px solid var(--ink); border-radius:12px;
+    background:#fff; box-shadow:2px 2px 0 rgba(23,49,46,.85); padding:8px 14px;}
+  .arow .anum{flex:0 0 60px; font-size:34px; font-weight:800; text-align:center; line-height:1; color:var(--teal-dk);}
+  .arow.ng{background:#FFE1E3; border-color:var(--red);}
+  .arow.ng .anum, .arow.ng .mname{color:var(--red);}
+  .trow{display:flex; align-items:center; gap:10px; border:2px solid rgba(23,49,46,.18);
+    border-radius:10px; padding:8px 12px; background:#FBFDFC; font-weight:800;}
+  .trow .ti{flex:0 0 24px; height:24px; border-radius:50%; background:var(--ink); color:#fff;
+    font-size:12px; display:flex; align-items:center; justify-content:center;}
+  .trow .tn{font-size:14px;}
+  .trow .tv{font-size:20px;}
+  .trow.ng{border-color:var(--red); background:#FFE1E3; color:var(--red);}
+  .trow.ng .ti{background:var(--red);}
+  .pcol > .result{flex:0 0 auto; padding:14px 12px;}
+  .pcol > .result .big-txt{font-size:26px;}
+  .next-host .label{margin-bottom:0;}
+  .pcol{overflow-y:auto;}
+
+  /* ===== プレイ中画面(3カラム) ===== */
+  .play-top{display:flex; align-items:center; gap:14px; flex:0 0 auto;}
+  .play-side{flex:1 1 0; display:flex; gap:8px; align-items:center; min-width:0;}
+  .play-side.right{justify-content:flex-end;}
+  .play-theme{flex:0 1 860px; background:var(--yellow); border:var(--bd); border-radius:var(--rad);
+    box-shadow:var(--sh); text-align:center; padding:10px 18px;}
+  .play-theme .label{color:rgba(23,49,46,.6); margin-bottom:2px;}
+  .play-theme .txt{font-size:30px; font-weight:800; line-height:1.25; word-break:break-word;}
+  .play-theme .by{font-size:12px; font-weight:800; color:rgba(23,49,46,.6); margin-top:3px;}
+  .grid3{flex:1; min-height:0; display:grid; gap:16px;
+    grid-template-columns:minmax(250px, 22%) minmax(0, 1fr) minmax(270px, 27%);}
+  .pcol{display:flex; flex-direction:column; gap:16px; min-height:0;}
+  .pcol-panel{display:flex; flex-direction:column; min-height:0;}
+  .pscroll{flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:8px;
+    padding:2px 6px 6px 2px;}
+
+  .pc-me{flex:1; display:flex; flex-direction:column; gap:12px; min-height:0;}
+  .pc-me .label{margin-bottom:0;}
+  .pc-card{flex:1 1 auto; min-height:120px; max-height:300px; border:var(--bd); border-radius:16px;
+    box-shadow:var(--sh); background:#fff; display:flex; flex-direction:column;
+    align-items:center; justify-content:center;}
+  .pc-card .num{font-size:96px; font-weight:800; line-height:1; color:var(--teal-dk);}
+  .pc-card .hint{font-size:13px; font-weight:800; margin-top:8px; color:var(--muted);}
+  .pc-card.played{background:#E8F0EE;}
+  .pc-card.played .num{color:var(--muted);}
+  .pc-card.ng{background:#FFE1E3; border-color:var(--red);}
+  .pc-card.ng .num, .pc-card.ng .hint{color:var(--red);}
+  .pc-card.watch{font-size:20px; font-weight:800; color:var(--muted);}
+  .pc-ctrl{display:flex; flex-direction:column; gap:8px; align-items:flex-start; flex:0 0 auto;}
+
+  .mrow{display:flex; align-items:center; gap:12px; border:2px solid rgba(23,49,46,.18);
+    border-radius:12px; padding:9px 12px; background:#FBFDFC;
+    cursor:grab; user-select:none; -webkit-user-select:none; position:relative;}
+  .mrow.me{border-color:var(--teal); background:#EFFAF7;}
+  .mrow.shifting{transition:transform .15s ease;}
+  .mrow.dragging{z-index:5; cursor:grabbing; border-color:var(--ink);
+    box-shadow:6px 8px 0 rgba(23,49,46,.35); background:#fff;}
+  .mrow .grip{flex:0 0 auto; font-size:20px; line-height:1; color:rgba(23,49,46,.35);
+    touch-action:none; cursor:grab; padding:4px 0;}
+  .mrow.dragging .grip{color:var(--ink);}
+  .mrow .rank{flex:0 0 28px; height:28px; font-size:14px;}
+  .mbody{flex:1; min-width:0;}
+  .mname{display:flex; align-items:center; gap:6px; font-size:13px; font-weight:800; color:var(--muted);}
+  .mword{font-size:21px; font-weight:800; line-height:1.3; word-break:break-word; margin-top:1px;}
+  .mword.empty{font-size:14px; color:var(--muted); font-weight:700;}
+  .mbtns{display:flex; gap:6px; align-items:center; flex:0 0 auto;}
+
+  .brow{display:flex; align-items:center; gap:12px; border:2.5px solid var(--ink); border-radius:12px;
+    background:#fff; box-shadow:2px 2px 0 rgba(23,49,46,.85); padding:7px 12px;}
+  .brow .bnum{flex:0 0 52px; font-size:30px; font-weight:800; text-align:center; line-height:1;}
+  .brow .bbody{flex:1; min-width:0;}
+  .brow .bword{font-size:19px; font-weight:800; line-height:1.3; word-break:break-word;}
+  .brow .bword.empty{font-size:13px; font-weight:700; color:var(--muted);}
+  .brow .bname{font-size:11.5px; font-weight:700; color:var(--muted); margin-top:2px;}
+  .brow.ng{background:#FFE1E3; border-color:var(--red); color:var(--red);}
+  .brow.ng .bword, .brow.ng .bname{color:var(--red);}
+
+  /* 狭い画面では縦に並べてスクロール可 */
+  @media (max-width: 900px){
+    .screen{height:auto; overflow:visible; padding:12px;}
+    .topbar{flex-wrap:wrap;}
+    .play-top{flex-wrap:wrap;}
+    .play-theme{flex:1 1 100%; order:3;}
+    .grid3, .grid-lobby, .grid-select, .join-grid{grid-template-columns:1fr; gap:14px;}
+    .logo.lg h1{font-size:52px;}
+    .pc-card{flex:0 0 auto; height:150px;}
+    .pscroll, .pcol{overflow:visible;}
+  }
+
   .cfg-err{border-color:var(--red);}
   .cfg-err code{background:#FFE8EA; border-radius:6px; padding:1px 6px; font-size:12px;}
 
   @media (prefers-reduced-motion: no-preference){
-    .pcard{animation:drop .3s ease-out;}
+    .pcard, .brow{animation:drop .3s ease-out;}
     @keyframes drop{from{transform:translateY(-12px); opacity:0;}
       to{transform:translateY(0); opacity:1;}}
+    .rl-tick{animation:rlTick .12s ease-out;}
+    @keyframes rlTick{from{transform:translateY(-35%); opacity:.25;} to{transform:none; opacity:1;}}
+    .rl-window.hit{animation:rlHit .5s ease-out;}
+    @keyframes rlHit{0%{transform:scale(1);} 40%{transform:scale(1.08);} 100%{transform:scale(1);}}
   }
 </style>
 </head>
@@ -229,12 +389,15 @@ const pid = (() => {
 })();
 
 const EMPTY_ROOM = {
-  phase: "lobby",       // lobby | playing | result
+  phase: "lobby",       // lobby | select(お題一覧) | playing | result
   result: null,          // clear | fail
   theme: "",
+  themeBy: "",           // 候補から決まったお題の提案者名
+  themeVia: "",          // roulette | pick | ""(手入力)
+  roulette: null,        // 一覧画面で回転中のルーレット {id, items:[{pid,name,text}], pick, at}
   round: 0,
   hostId: "",
-  players: {},           // {pid: {name, joined, num, played, failed, word}}
+  players: {},           // {pid: {name, joined, num, played, failed, word, proposal}}
   order: [],             // 作戦ボード: 予想順(小さい順)のpid配列
   board: []              // [{pid, name, num, failed}] 出された順
 };
@@ -272,12 +435,138 @@ function sortedPlayers(players) {
     .sort((a, b) => (a.joined || 0) - (b.joined || 0));
 }
 
+/* お題候補(入力済みのプレイヤー) */
+function candidates(players) {
+  return sortedPlayers(players).filter((p) => (p.proposal || "").trim());
+}
+
+/* ラウンドの状態を片付ける(ロビー/一覧画面へ戻るとき) */
+function clearRound(d) {
+  d.result = null; d.board = []; d.theme = ""; d.order = [];
+  d.themeBy = ""; d.themeVia = ""; d.roulette = null;
+  Object.values(d.players || {}).forEach((p) => {
+    p.num = null; p.played = false; p.failed = false; p.word = "";
+  });
+}
+
+/* 数字を配ってラウンド開始(手入力・ルーレット共通) */
+function dealInto(d, theme) {
+  const ids = Object.keys(d.players || {});
+  if (ids.length < 2) { alert("2人以上で開始できます"); return false; }
+  const pool = shuffle(Array.from({length: 100}, (_, i) => i + 1));
+  ids.forEach((id, i) => {
+    const p = d.players[id];
+    p.num = pool[i]; p.played = false; p.failed = false; p.word = "";
+  });
+  d.theme = theme;
+  d.order = sortedPlayers(d.players).map((p) => p.id);
+  d.phase = "playing";
+  d.result = null;
+  d.board = [];
+  d.round = (d.round || 0) + 1;
+  return true;
+}
+
+/* テスト用プレイヤーが自動で出すお題候補 */
+const BOT_THEMES = ["好きな食べ物", "行ってみたい国", "強そうな動物", "人気のコンビニ商品",
+  "怖いもの", "もらってうれしいプレゼント", "便利な道具", "かっこいい名前"];
+function botTheme(except) {
+  const ex = [].concat(except || []);
+  let c = BOT_THEMES.filter((t) => ex.indexOf(t) < 0);
+  if (!c.length) c = BOT_THEMES;
+  return c[Math.floor(Math.random() * c.length)];
+}
+function usedProposals(d) {
+  return Object.values(d.players || {}).map((p) => p.proposal).filter(Boolean);
+}
+/* 採用された候補を片付ける(ボットは次の候補を自動で用意) */
+function consumeProposal(d, id) {
+  const p = d.players && d.players[id];
+  if (!p) return;
+  p.proposal = p.bot ? botTheme(usedProposals(d)) : "";
+}
+
+/* カードを出す(actor=出す人のpid / botOnly=テスト用プレイヤーの代理のみ許可) */
+function playCardAs(actor, botOnly) {
+  return txRoom((d) => {
+    if (d.phase !== "playing") return null;
+    const me = d.players && d.players[actor];
+    if (!me || me.played || me.num == null) return null;
+    if (botOnly && !me.bot) return null;
+    const skipped = Object.entries(d.players)
+      .filter(([id, p]) => id !== actor && !p.played && p.num != null && p.num < me.num)
+      .sort((a, b) => a[1].num - b[1].num);
+    skipped.forEach(([id, p]) => {
+      p.played = true; p.failed = true;
+      d.board.push({pid: id, name: p.name, num: p.num, failed: true});
+    });
+    me.played = true;
+    d.board.push({pid: actor, name: me.name, num: me.num, failed: false});
+    const allDone = Object.values(d.players).every((p) => p.num == null || p.played);
+    if (allDone) {
+      d.phase = "result";
+      d.result = d.board.some((c) => c.failed) ? "miss" : "clear";
+    }
+    return d;
+  });
+}
+
+function listCandidates(d) {
+  return sortedPlayers(d.players)
+    .filter((p) => (p.proposal || "").trim())
+    .map((p) => ({pid: p.id, name: p.name, text: p.proposal.trim()}));
+}
+
+/* 一覧画面: ホストが候補を選んで決定 → ゲーム画面へ */
+function pickDealTx(targetPid) {
+  return txRoom((d) => {
+    if (d.phase !== "select" || d.roulette) return null;   // ルーレット回転中は不可
+    const it = listCandidates(d).find((x) => x.pid === targetPid);
+    if (!it) { alert("その候補は取り消されたようです"); return null; }
+    if (!dealInto(d, it.text)) return null;
+    consumeProposal(d, it.pid);
+    d.themeBy = it.name; d.themeVia = "pick";
+    return d;
+  });
+}
+
+/* 一覧画面: ルーレット開始(結果はここで決定し、演出は各端末の一覧画面で再生) */
+function startRouletteTx() {
+  return txRoom((d) => {
+    if (d.phase !== "select" || d.roulette) return null;
+    const items = listCandidates(d);
+    if (!items.length) { alert("お題候補がまだありません"); return null; }
+    if (Object.keys(d.players || {}).length < 2) { alert("2人以上で開始できます"); return null; }
+    d.roulette = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      items: items,
+      pick: Math.floor(Math.random() * items.length),
+      at: Date.now()
+    };
+    return d;
+  });
+}
+
+/* ルーレット演出が終わったら配ってゲーム画面へ(何度呼ばれても1回だけ反映) */
+function finishRouletteTx(rid) {
+  return txRoom((d) => {
+    const r = d.roulette;
+    if (d.phase !== "select" || !r || r.id !== rid) return null;
+    const it = r.items[r.pick];
+    d.roulette = null;
+    if (!dealInto(d, it.text)) return d;
+    consumeProposal(d, it.pid);
+    d.themeBy = it.name; d.themeVia = "roulette";
+    return d;
+  });
+}
+
 /* ============ 操作 ============ */
 const actions = {
   join(name) {
     return txRoom((d) => {
       d.players = d.players || {};
-      d.players[pid] = {name: name, joined: Date.now(), num: null, played: false, failed: false, word: ""};
+      d.players[pid] = {name: name, joined: Date.now(), num: null, played: false, failed: false, word: "", proposal: ""};
       if (!d.hostId || !d.players[d.hostId]) d.hostId = pid;
       return d;
     });
@@ -286,13 +575,36 @@ const actions = {
     return txRoom((d) => {
       if (!d.players || !d.players[pid]) return null;
       delete d.players[pid];
-      if (d.hostId === pid) {
-        const rest = sortedPlayers(d.players);
-        d.hostId = rest.length ? rest[0].id : "";
+      const humans = sortedPlayers(d.players).filter((p) => !p.bot);
+      if (!humans.length) return JSON.parse(JSON.stringify(EMPTY_ROOM)); // 人間がいなくなったら部屋を片付け
+      if (d.hostId === pid) d.hostId = humans[0].id;
+      return d;
+    });
+  },
+  /* ---- テスト用プレイヤー(ボット) ---- */
+  addBot() {
+    return txRoom((d) => {
+      if (d.phase === "playing") return null;
+      d.players = d.players || {};
+      const n = Object.values(d.players).filter((p) => p.bot).length + 1;
+      const id = "bot" + Math.random().toString(36).slice(2, 8);
+      d.players[id] = {name: "🤖テスト" + n, joined: Date.now(), num: null, played: false,
+        failed: false, word: "", proposal: botTheme(usedProposals(d)), bot: true};
+      return d;
+    });
+  },
+  removeBots() {
+    return txRoom((d) => {
+      if (d.phase === "playing") return null;
+      Object.keys(d.players || {}).forEach((id) => { if (d.players[id].bot) delete d.players[id]; });
+      if (!d.players[d.hostId]) {
+        const h = sortedPlayers(d.players)[0];
+        d.hostId = h ? h.id : "";
       }
       return d;
     });
   },
+  playBot(id) { return playCardAs(id, true); },
   becomeHost() {
     return txRoom((d) => { d.hostId = pid; return d; });
   },
@@ -304,69 +616,41 @@ const actions = {
   },
   deal(theme) {
     return txRoom((d) => {
-      const ids = Object.keys(d.players || {});
-      if (ids.length < 2) { alert("2人以上で開始できます"); return null; }
-      const pool = shuffle(Array.from({length: 100}, (_, i) => i + 1));
-      ids.forEach((id, i) => {
-        const p = d.players[id];
-        p.num = pool[i]; p.played = false; p.failed = false; p.word = "";
-      });
-      d.theme = theme;
-      d.order = sortedPlayers(d.players).map((p) => p.id);
-      d.phase = "playing";
-      d.result = null;
-      d.board = [];
-      d.round = (d.round || 0) + 1;
+      if (!dealInto(d, theme)) return null;
+      d.themeBy = ""; d.themeVia = ""; d.roulette = null;
       return d;
     });
   },
-  playCard() {
-    return txRoom((d) => {
-      if (d.phase !== "playing") return null;
-      const me = d.players && d.players[pid];
-      if (!me || me.played || me.num == null) return null;
-      const skipped = Object.entries(d.players)
-        .filter(([id, p]) => id !== pid && !p.played && p.num != null && p.num < me.num)
-        .sort((a, b) => a[1].num - b[1].num);
-      skipped.forEach(([id, p]) => {
-        p.played = true; p.failed = true;
-        d.board.push({pid: id, name: p.name, num: p.num, failed: true});
-      });
-      me.played = true;
-      d.board.push({pid: pid, name: me.name, num: me.num, failed: false});
-      const allDone = Object.values(d.players).every((p) => p.num == null || p.played);
-      if (allDone) {
-        d.phase = "result";
-        d.result = d.board.some((c) => c.failed) ? "miss" : "clear";
-      }
-      return d;
-    });
+  /* 一覧画面: ルーレット開始 / 終了 */
+  startRoulette() { return startRouletteTx(); },
+  finishRoulette(rid) { return finishRouletteTx(rid); },
+  /* 一覧画面: 候補からホストが任意に選んで決定 */
+  pickDeal(id) { return pickDealTx(id); },
+  setProposal(t) {
+    if (!db) return;
+    roomRef.update({["players." + pid + ".proposal"]: t}).catch(() => {});
   },
-  moveOrder(id, dir) {
+  playCard() { return playCardAs(pid, false); },
+  /* 作戦ボードの並びを丸ごと保存(ドラッグ&ドロップ後) */
+  setOrder(ids) {
     return txRoom((d) => {
       if (d.phase !== "playing") return null;
-      const alive = (d.order || []).filter((x) => {
-        const p = d.players && d.players[x];
-        return p && p.num != null && !p.played;
-      });
-      Object.keys(d.players || {}).forEach((x) => {
-        const p = d.players[x];
-        if (p.num != null && !p.played && alive.indexOf(x) < 0) alive.push(x);
-      });
-      const i = alive.indexOf(id);
-      const j = i + dir;
-      if (i < 0 || j < 0 || j >= alive.length) return null;
-      const tmp = alive[i]; alive[i] = alive[j]; alive[j] = tmp;
-      d.order = alive;
+      const alive = (x) => { const p = d.players && d.players[x]; return p && p.num != null && !p.played; };
+      const next = ids.filter(alive);
+      Object.keys(d.players || {}).forEach((x) => { if (alive(x) && next.indexOf(x) < 0) next.push(x); });
+      d.order = next;
       return d;
     });
   },
   toLobby() {
+    return txRoom((d) => { clearRound(d); d.phase = "lobby"; return d; });
+  },
+  /* ホスト: お題候補一覧画面へ(全員の画面が切り替わる) */
+  openSelect() {
     return txRoom((d) => {
-      d.phase = "lobby"; d.result = null; d.board = []; d.theme = ""; d.order = [];
-      Object.values(d.players || {}).forEach((p) => {
-        p.num = null; p.played = false; p.failed = false; p.word = "";
-      });
+      if (d.phase === "playing") return null;
+      clearRound(d);
+      d.phase = "select";
       return d;
     });
   },
@@ -381,19 +665,31 @@ const actions = {
 
 /* ============ UI 部品 ============ */
 
-function Logo() {
+function Logo({size}) {
   return (
-    <div className="logo">
+    <div className={"logo" + (size === "lg" ? " lg" : "")}>
       <h1>ito<span className="dot">.</span>room</h1>
       <span className="sub">数字を言わずに、心をそろえる</span>
     </div>
   );
 }
 
+/* 中央寄せの1枚画面(接続中・設定エラー) */
+function CenterScreen({children}) {
+  return (
+    <div className="screen center-screen">
+      <div style={{width: "100%", maxWidth: 520}}>
+        <Logo size="lg" />
+        <div style={{height: 16}} />
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function ConfigError() {
   return (
-    <div>
-      <Logo />
+    <CenterScreen>
       <div className="panel cfg-err">
         <div className="label">セットアップが必要です</div>
         <p className="note">
@@ -402,6 +698,29 @@ function ConfigError() {
           手順はファイル冒頭のコメントに書いてあります。
         </p>
       </div>
+    </CenterScreen>
+  );
+}
+
+/* あそびかた */
+function HowTo() {
+  const steps = [
+    ["お題を決める", "みんなでお題候補を出して、ホストがルーレットか選択で決めます(直接入力もOK)。"],
+    ["数字カードが配られる", "1〜100の数字が1人1枚。自分の数字は口に出しちゃダメ!"],
+    ["たとえワードで伝える", "お題にそって数字の大きさを表現。100に近いほど「すごい」もの。"],
+    ["小さい順に出す", "作戦ボードで順番を相談して、小さいと思う人から「出す!」。"]
+  ];
+  return (
+    <div className="howto">
+      {steps.map((s, i) => (
+        <div key={i} className="step">
+          <span className="sn">{i + 1}</span>
+          <div>
+            <div className="st-t">{s[0]}</div>
+            <div className="st-d">{s[1]}</div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -412,90 +731,273 @@ function JoinScreen({defaultRoom, onJoin}) {
   const ok = name.trim().length > 0 && normalizeRoomId(roomWord).length > 0;
   const go = () => { if (ok) onJoin(name.trim(), normalizeRoomId(roomWord)); };
   return (
-    <div>
-      <Logo />
-      <div className="panel">
-        <div className="label">ユーザーネーム</div>
-        <input type="text" maxLength={12} placeholder="例:もと"
-          value={name} onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") go(); }} />
-        <div style={{height: 10}} />
-        <div className="label">部屋の合言葉</div>
-        <input type="text" maxLength={20} placeholder="例: あいことば"
-          value={roomWord} onChange={(e) => setRoomWord(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") go(); }} />
-        <div style={{height: 10}} />
-        <button className="btn big" disabled={!ok} onClick={go}>
-          入室する
-        </button>
-        <hr className="hr" />
-        <p className="note">
-          アカウント登録は不要。その場限りの名前でOKです。<br />
-          同じ合言葉を入れた人どうしが同じ部屋に入ります。
-          新しい合言葉を入れると、その部屋が自動で作られます。<br />
-          入室後のURL(#合言葉つき)を共有すると、相手は合言葉が入力済みの状態で開けます。
-        </p>
+    <div className="screen">
+      <div className="join-grid">
+        <div className="join-hero">
+          <Logo size="lg" />
+          <div style={{height: 22}} />
+          <div className="panel">
+            <div className="label">あそびかた</div>
+            <HowTo />
+          </div>
+        </div>
+        <div className="panel big-form">
+          <div className="label">ユーザーネーム</div>
+          <input type="text" maxLength={12} placeholder="例:もと"
+            value={name} onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") go(); }} />
+          <div style={{height: 14}} />
+          <div className="label">部屋の合言葉</div>
+          <input type="text" maxLength={20} placeholder="例: あいことば"
+            value={roomWord} onChange={(e) => setRoomWord(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") go(); }} />
+          <div style={{height: 16}} />
+          <button className="btn big" disabled={!ok} onClick={go}>
+            入室する
+          </button>
+          <hr className="hr" />
+          <p className="note" style={{margin: 0}}>
+            アカウント登録は不要。その場限りの名前でOKです。<br />
+            同じ合言葉を入れた人どうしが同じ部屋に入ります。
+            新しい合言葉を入れると、その部屋が自動で作られます。<br />
+            入室後のURL(#合言葉つき)を共有すると、相手は合言葉が入力済みの状態で開けます。
+          </p>
+        </div>
       </div>
     </div>
   );
 }
 
-function ThemeCard({theme}) {
+function RoomChips({room, roomId}) {
   return (
-    <div className="panel theme-card">
-      <div className="label">お題</div>
-      <div className="txt">{theme || "(お題なし)"}</div>
+    <React.Fragment>
+      <span className="round-chip" style={{background: "var(--teal-dk)"}}>🏠 {roomId}</span>
+      <span className="round-chip">ROUND {room.round || 0}</span>
+    </React.Fragment>
+  );
+}
+
+function LeaveButton() {
+  return (
+    <button className="btn sm ghost" onClick={() => {
+      if (window.confirm("部屋から退出しますか?")) actions.leave();
+    }}>退出する</button>
+  );
+}
+
+/* メインメニュー・お題一覧の上部バー */
+function TopBar({room, roomId, title}) {
+  return (
+    <div className="topbar">
+      <Logo />
+      <RoomChips room={room} roomId={roomId} />
+      {title && <span className="topbar-title">{title}</span>}
+      <span className="sp" />
+      <LeaveButton />
     </div>
   );
 }
 
-function MyCard({me, phase, onPlay}) {
-  const [open, setOpen] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  useEffect(() => { setOpen(false); setConfirming(false); }, [me && me.num]);
-
-  if (!me || me.num == null) return null;
-  const played = me.played;
-  const face = played ? "played-face" : (open ? "open-face" : "hidden-face");
+/* プレイ中・結果の上部バー(お題を大きく) */
+function ThemeBar({room, roomId}) {
+  const missCount = (room.board || []).filter((c) => c.failed).length;
   return (
-    <div className="panel">
-      <div className="label">あなたのカード</div>
-      <div className="mycard-wrap">
-        <div className={"mycard " + face} onClick={() => !played && setOpen(!open)}>
-          {played ? (
+    <div className="play-top">
+      <div className="play-side">
+        <RoomChips room={room} roomId={roomId} />
+      </div>
+      <div className="play-theme">
+        <div className="label">お題</div>
+        <div className="txt">{room.theme || "(お題なし)"}</div>
+        {room.themeBy && (
+          <div className="by">{room.themeVia === "roulette" ? "🎰 ルーレットで決定" : "👉 ホストが選択"} / {room.themeBy} さんの候補</div>
+        )}
+      </div>
+      <div className="play-side right">
+        {missCount > 0 && <span className="round-chip miss">✕ ミス {missCount}</span>}
+      </div>
+    </div>
+  );
+}
+
+/* 自分のお題候補を登録(一覧はホストが一覧画面で全員に見せる) */
+function ProposalPanel({room, title, compact}) {
+  const [t, setT] = useState("");
+  const me = room.players && room.players[pid];
+  if (!me) return null;
+  const count = candidates(room.players).length;
+  const total = Object.keys(room.players || {}).length;
+  const submit = () => {
+    const v = t.trim();
+    if (!v) return;
+    actions.setProposal(v);
+    setT("");
+  };
+  return (
+    <div className={"panel" + (compact ? "" : " big-form")}>
+      <div className="label">{title || "お題候補を登録(1人1つ)"}</div>
+      <div className="row">
+        <input type="text" maxLength={60} style={{flex: 1, minWidth: 0}}
+          placeholder={me.proposal ? "書き直す…" : (compact ? "お題を出そう" : "お題を出そう(例: 好きな食べ物)")}
+          value={t} onChange={(e) => setT(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
+        <button className="btn" style={{flex: "0 0 auto"}} disabled={!t.trim()} onClick={submit}>
+          {me.proposal ? "更新" : "登録"}
+        </button>
+      </div>
+      {me.proposal && (
+        <div className="prop-row me" style={{marginTop: 10}}>
+          <div className="ptxt">
+            {me.proposal}
+            <div className="pby">あなたの候補</div>
+          </div>
+          <button className="btn sm ghost" onClick={() => actions.setProposal("")}>取消</button>
+        </div>
+      )}
+      <div style={{height: 8}} />
+      <p className="note" style={{margin: 0}}>
+        登録済み {count} / {total}人。ホストが「お題一覧をみる」を押すと、全員の画面に一覧が出ます。
+      </p>
+    </div>
+  );
+}
+
+/* ホスト不在・ボットがホストのときの復帰ボタン */
+function HostRecovery({room}) {
+  const host = room.hostId && room.players && room.players[room.hostId];
+  if (!host) {
+    return (
+      <button className="btn sm ghost" onClick={actions.becomeHost}>
+        ホストが不在のようです → 自分がホストになる
+      </button>
+    );
+  }
+  if (host.bot) {
+    return (
+      <button className="btn sm ghost" onClick={actions.becomeHost}>
+        🤖テスト用プレイヤーからHOSTを取り戻す
+      </button>
+    );
+  }
+  return null;
+}
+
+/* ルーレット演出(全端末で同じ並び・同じ結果に止まる)
+   終わったらホストが finishRoulette → 全員ゲーム画面へ。
+   ホストが落ちた時の保険として、他の人も少し遅れて finishRoulette を呼ぶ(反映は1回だけ)。 */
+function useRouletteSpin(roulette, isHost) {
+  const [st, setSt] = useState(null);   // {step, done}
+  const timers = useRef([]);
+  const rid = roulette && roulette.id;
+  useEffect(() => {
+    if (!rid || !roulette.items || !roulette.items.length) { setSt(null); return; }
+    const push = (fn, t) => timers.current.push(setTimeout(fn, t));
+    const n = roulette.items.length;
+    const loops = Math.max(2, Math.ceil(24 / n));
+    const total = loops * n + roulette.pick;
+    let seen = "";
+    try { seen = sessionStorage.getItem("ito_rl_seen") || ""; } catch (e) {}
+    try { sessionStorage.setItem("ito_rl_seen", rid); } catch (e) {}
+    const late = seen === rid || Math.abs(Date.now() - (roulette.at || 0)) > 15000;
+    if (late) {                                  // リロード・途中参加: 結果だけ表示
+      setSt({step: total, done: true});
+      push(() => actions.finishRoulette(rid), isHost ? 800 : 3500);
+    } else {
+      setSt({step: 0, done: false});
+      let t = 0;
+      for (let s = 1; s <= total; s++) {
+        const r = s / total;
+        t += 50 + 420 * r * r * r;               // だんだん減速
+        push(() => setSt({step: s, done: s === total}), t);
+      }
+      push(() => actions.finishRoulette(rid), t + (isHost ? 2000 : 5000));  // 「決定!」を見せてからゲームへ
+    }
+    return () => { timers.current.forEach(clearTimeout); timers.current = []; };
+  }, [rid]);
+  return st;
+}
+
+/* お題一覧画面: 全員が見る / 操作はホストのみ / ルーレットもこの画面で回す */
+function SelectScreen({room, roomId, isHost}) {
+  const roulette = room.roulette;
+  const spinning = !!(roulette && roulette.items && roulette.items.length);
+  const st = useRouletteSpin(roulette, isHost);
+  const list = spinning
+    ? roulette.items
+    : candidates(room.players).map((p) => ({pid: p.id, name: p.name, text: p.proposal}));
+  const host = room.players && room.players[room.hostId];
+  const active = spinning && st ? st.step % list.length : -1;
+  const done = spinning && st && st.done;
+  const cur = active >= 0 ? list[active] : null;
+  const pick = (p) => {
+    if (window.confirm("「" + p.text + "」でスタートしますか?")) actions.pickDeal(p.pid);
+  };
+  const tileClass = (i) => {
+    if (!spinning || active < 0) return "tile";
+    if (i === active) return "tile " + (done ? "win" : "on");
+    return "tile" + (done ? " dim" : "");
+  };
+  return (
+    <div className="screen">
+      <TopBar room={room} roomId={roomId} title="📋 お題候補一覧" />
+      <div className="grid-select">
+        <div className="panel pcol-panel">
+          <div className="label">
+            お題候補一覧({list.length}件){spinning ? (done ? " — 🎉 決定!" : " — 🎰 ルーレット中…") : ""}
+          </div>
+          <div className="pscroll">
+            {list.length === 0 ? (
+              <div className="cardrow-empty">候補がありません。メインメニューで登録してください。</div>
+            ) : (
+              <div className="tiles">
+                {list.map((p, i) => (
+                  <div key={p.pid} className={tileClass(i)}>
+                    <div className="tile-txt">{p.text}</div>
+                    <div className="tile-by">by {p.name}</div>
+                    {isHost && !spinning && (
+                      <button className="btn sm" onClick={() => pick(p)}>これに決定</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="panel side-ctrl">
+          {spinning ? (
             <React.Fragment>
-              <div className="num">{me.num}</div>
-              <div className="hint">出しました</div>
+              <div className="label">🎰 お題ルーレット</div>
+              <div className={"rl-window" + (done ? " hit" : "")}>
+                {cur && (
+                  <div key={st.step} className="rl-tick">
+                    <div className="rl-txt">{cur.text}</div>
+                    <div className="rl-by">by {cur.name}</div>
+                  </div>
+                )}
+              </div>
+              <div className="watch-msg" style={{padding: "10px 4px", fontSize: 16}}>
+                {done ? "🎉 決定!まもなくゲーム開始…" : "抽選中…"}
+              </div>
             </React.Fragment>
-          ) : open ? (
+          ) : isHost ? (
             <React.Fragment>
-              <div className="num">{me.num}</div>
-              <div className="hint">タップで隠す</div>
+              <div className="label">ホスト操作</div>
+              <p className="note" style={{marginTop: 0}}>ルーレットを回すか、候補の「これに決定」で選んでください。</p>
+              <button className="btn big pink roulette-btn" disabled={list.length === 0} onClick={actions.startRoulette}>
+                🎰<br />ルーレットで決める
+              </button>
+              <span className="sp" />
+              <button className="btn sm ghost" onClick={actions.toLobby}>← メインメニューに戻る</button>
             </React.Fragment>
           ) : (
             <React.Fragment>
-              <div className="num">?</div>
-              <div className="hint">タップで見る</div>
+              <div className="label">いまの状況</div>
+              <div className="watch-msg">
+                👀<br />{(host ? host.name : "ホスト") + " さんがお題を決めています…"}
+              </div>
+              <span className="sp" />
+              <HostRecovery room={room} />
             </React.Fragment>
-          )}
-        </div>
-        <div className="my-side">
-          {phase === "playing" && !played && (
-            confirming ? (
-              <React.Fragment>
-                <button className="btn pink" onClick={() => { setConfirming(false); onPlay(); }}>
-                  本当に出す!
-                </button>
-                <button className="btn ghost sm" onClick={() => setConfirming(false)}>やめる</button>
-              </React.Fragment>
-            ) : (
-              <button className="btn big pink" onClick={() => setConfirming(true)}>
-                出す!
-              </button>
-            )
-          )}
-          {phase === "playing" && played && (
-            <p className="note">みんなの動きを見守りましょう…</p>
           )}
         </div>
       </div>
@@ -503,27 +1005,10 @@ function MyCard({me, phase, onPlay}) {
   );
 }
 
-function WordInput({me}) {
-  const [w, setW] = useState((me && me.word) || "");
-  const timer = useRef(null);
-  useEffect(() => { setW((me && me.word) || ""); }, [me && me.num]);
-  function onChange(v) {
-    setW(v);
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => actions.setWord(v), 500);
-  }
-  if (!me || me.num == null || me.played) return null;
-  return (
-    <div className="panel">
-      <div className="label">たとえワード</div>
-      <input type="text" maxLength={30} placeholder="例: おにぎりの具ならシャケ"
-        value={w} onChange={(e) => onChange(e.target.value)} />
-    </div>
-  );
-}
+/* ============ プレイ中画面(PC 3カラム・スクロールなし) ============ */
 
-function OrderBoard({room}) {
-  if (room.phase !== "playing") return null;
+/* 作戦ボードの並び(まだ出していない人) */
+function aliveOrder(room) {
   const alive = [];
   (room.order || []).forEach((id) => {
     const p = room.players && room.players[id];
@@ -532,79 +1017,182 @@ function OrderBoard({room}) {
   Object.entries(room.players || {}).forEach(([id, p]) => {
     if (p.num != null && !p.played && !alive.some((a) => a.id === id)) alive.push({id: id, ...p});
   });
-  if (alive.length < 2) return null;
+  return alive;
+}
+
+function WordField({me}) {
+  const [w, setW] = useState((me && me.word) || "");
+  const timer = useRef(null);
+  useEffect(() => { setW((me && me.word) || ""); }, [me && me.num]);
+  function onChange(v) {
+    setW(v);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => actions.setWord(v), 500);
+  }
   return (
-    <div className="panel">
-      <div className="label">作戦ボード</div>
-      <div className="plist">
-        {alive.map((p, i) => (
-          <div key={p.id} className={"prow" + (p.id === pid ? " me" : "")}>
-            <span className="rank">{i + 1}</span>
-            <span className="nm">{p.name}</span>
-            <span className="word">{p.word ? "「" + p.word + "」" : ""}</span>
-            <span className="sp" />
-            <button className="btn sm ghost" disabled={i === 0}
-              onClick={() => actions.moveOrder(p.id, -1)}>↑</button>
-            <button className="btn sm ghost" disabled={i === alive.length - 1}
-              onClick={() => actions.moveOrder(p.id, 1)}>↓</button>
-          </div>
-        ))}
-      </div>
-      <div style={{height: 6}} />
-      <p className="note">誰でも並べ替えOK。全員の画面に同期されます。出した人は自動で消えます。</p>
+    <div>
+      <div className="label">たとえワード</div>
+      <input type="text" maxLength={30} placeholder="例: おにぎりの具ならシャケ"
+        value={w} onChange={(e) => onChange(e.target.value)} />
     </div>
   );
 }
 
-function ThreadBoard({board}) {
-  const sorted = (board || []).slice().sort((a, b) => a.num - b.num);
+/* 左: 自分のカード(数字は常に表示) */
+function MyCardPC({me}) {
+  const [confirming, setConfirming] = useState(false);
+  useEffect(() => { setConfirming(false); }, [me && me.num]);
+  const hasCard = me && me.num != null;
   return (
-    <div className="panel">
-      <div className="label">出されたカード(小さい順)</div>
-      {sorted.length === 0 ? (
-        <div className="cardrow-empty">まだカードが出ていません。<br />いちばん小さいと思う人から「出す!」</div>
+    <div className="panel pc-me">
+      <div className="label">あなたのカード</div>
+      {!hasCard ? (
+        <div className="pc-card watch">見学中</div>
       ) : (
-        <div className="cardrow">
-          {sorted.map((c) => (
-            <div key={c.pid + "-" + c.num} className={"pcard" + (c.failed ? " ng" : "")}>
-              <div className="n">{c.failed ? "✕" + c.num : c.num}</div>
-              <div className="who">{c.name}</div>
-            </div>
-          ))}
-        </div>
+        <React.Fragment>
+          <div className={"pc-card" + (me.played ? " played" : "") + (me.failed ? " ng" : "")}>
+            <div className="num">{me.num}</div>
+            {me.played && <div className="hint">{me.failed ? "✕ 失敗" : "出しました"}</div>}
+          </div>
+          {!me.played && (
+            confirming ? (
+              <div className="row">
+                <button className="btn big pink" style={{flex: 1}}
+                  onClick={() => { setConfirming(false); actions.playCard(); }}>本当に出す!</button>
+                <button className="btn ghost" onClick={() => setConfirming(false)}>やめる</button>
+              </div>
+            ) : (
+              <button className="btn big pink" onClick={() => setConfirming(true)}>出す!</button>
+            )
+          )}
+          {!me.played && <WordField me={me} />}
+          {me.played && <p className="note" style={{margin: 0}}>みんなの動きを見守りましょう…</p>}
+        </React.Fragment>
       )}
     </div>
   );
 }
 
-function PlayerList({room}) {
-  const list = sortedPlayers(room.players);
+/* 中央: みんなの名前とたとえワード(作戦ボード兼用) */
+function WordBoard({room}) {
+  const watchers = sortedPlayers(room.players).filter((p) => p.num == null);
+  const [drag, setDrag] = useState(null);      // {id, from, to, startY, dy, rects, shift}
+  const [pending, setPending] = useState(null); // 保存待ちの並び(サーバー反映までのチラつき防止)
+  const listRef = useRef(null);
+  const orderKey = JSON.stringify(room.order || []);
+  useEffect(() => { setPending(null); }, [orderKey]);
+
+  let list = aliveOrder(room);
+  if (pending) {
+    const pos = (id) => { const k = pending.indexOf(id); return k < 0 ? 999 : k; };
+    list = list.slice().sort((a, b) => pos(a.id) - pos(b.id));
+  }
+
+  /* ---- ドラッグ&ドロップ(マウスは行のどこでも / タッチは左のつまみ) ---- */
+  function onDown(e, id, idx) {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    if (e.target.closest("button")) return;
+    if (e.pointerType !== "mouse" && !e.target.closest(".grip")) return;
+    const rows = Array.from(listRef.current.querySelectorAll(".mrow"));
+    const rects = rows.map((r) => r.getBoundingClientRect());
+    const gap = rects.length > 1 ? rects[1].top - rects[0].bottom : 8;
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+    e.preventDefault();
+    setDrag({id: id, from: idx, to: idx, startY: e.clientY, dy: 0, rects: rects, shift: rects[idx].height + gap});
+  }
+  function onMove(e) {
+    if (!drag) return;
+    const dy = e.clientY - drag.startY;
+    const r = drag.rects[drag.from];
+    const cy = r.top + r.height / 2 + dy;
+    let to = 0;
+    drag.rects.forEach((rr, i) => { if (i !== drag.from && cy > rr.top + rr.height / 2) to++; });
+    setDrag({...drag, dy: dy, to: to});
+  }
+  function onUp() {
+    if (!drag) return;
+    const {from, to, id} = drag;
+    setDrag(null);
+    if (from === to) return;
+    const ids = list.map((p) => p.id);
+    ids.splice(from, 1);
+    ids.splice(to, 0, id);
+    setPending(ids);
+    actions.setOrder(ids);
+  }
+  /* ドラッグ中の見た目上の位置 */
+  function visualIndex(i) {
+    if (!drag) return i;
+    const {from, to} = drag;
+    if (i === from) return to;
+    if (from < to && i > from && i <= to) return i - 1;
+    if (from > to && i >= to && i < from) return i + 1;
+    return i;
+  }
+  function rowStyle(i) {
+    if (!drag) return undefined;
+    if (i === drag.from) return {transform: "translateY(" + drag.dy + "px)"};
+    const v = visualIndex(i);
+    return v === i ? undefined : {transform: "translateY(" + ((v - i) * drag.shift) + "px)"};
+  }
+
   return (
-    <div className="panel">
-      <div className="label">プレイヤー({list.length}人)</div>
-      <div className="plist">
-        {list.map((p) => {
-          let st = null;
-          if (room.phase === "playing" || room.phase === "result") {
-            if (p.num == null) st = <span className="st nonum">見学</span>;
-            else if (p.failed) st = <span className="st ng">✕ 失敗</span>;
-            else if (p.played) st = <span className="st done">出した</span>;
-            else st = <span className="st wait">考え中</span>;
-          }
+    <div className="panel pcol-panel">
+      <div className="label">みんなのたとえワード(作戦ボード:小さいと思う順)</div>
+      <div className="pscroll" ref={listRef}>
+        {list.length === 0 && <div className="cardrow-empty">全員出し終わりました</div>}
+        {list.map((p, i) => (
+          <div key={p.id} style={rowStyle(i)}
+            className={"mrow" + (p.id === pid ? " me" : "") + (drag ? (drag.from === i ? " dragging" : " shifting") : "")}
+            onPointerDown={(e) => onDown(e, p.id, i)}
+            onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+            <span className="grip" title="ドラッグで並べ替え">⠿</span>
+            <span className="rank">{visualIndex(i) + 1}</span>
+            <div className="mbody">
+              <div className="mname">
+                {p.name}
+                {p.id === room.hostId && <span className="host-mark">HOST</span>}
+                {p.bot && <span className="st bot">#{p.num}</span>}
+              </div>
+              <div className={"mword" + (p.word ? "" : " empty")}>{p.word || "(考え中…)"}</div>
+            </div>
+            {p.bot && (
+              <div className="mbtns">
+                <button className="btn sm pink" onClick={() => actions.playBot(p.id)}>代わりに出す</button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <p className="note" style={{margin: "8px 0 0"}}>
+        ドラッグ&ドロップで並べ替え(誰でもOK・全員に同期)。出した人は右へ移動します。
+        {watchers.length > 0 && <React.Fragment><br />見学: {watchers.map((p) => p.name).join("、")}</React.Fragment>}
+      </p>
+    </div>
+  );
+}
+
+/* 右: 出されたカード(小さい順) */
+function PlayedBoard({room}) {
+  const sorted = (room.board || []).slice().sort((a, b) => a.num - b.num);
+  const holders = Object.values(room.players || {}).filter((p) => p.num != null).length;
+  return (
+    <div className="panel pcol-panel">
+      <div className="label">出されたカード(小さい順) {sorted.length} / {holders}</div>
+      <div className="pscroll">
+        {sorted.length === 0 && (
+          <div className="cardrow-empty">まだカードが出ていません。<br />いちばん小さいと思う人から「出す!」</div>
+        )}
+        {sorted.map((c) => {
+          const p = room.players && room.players[c.pid];
+          const w = p && p.word;
           return (
-            <div key={p.id} className={"prow" + (p.id === pid ? " me" : "")}>
-              <span className="nm">{p.name}</span>
-              {p.id === room.hostId && <span className="host-mark">HOST</span>}
-              <span className="sp" />
-              {st}
-              {room.hostId === pid && p.id !== pid && (
-                <button className="btn sm ghost" onClick={() => {
-                  if (window.confirm(p.name + " にHOSTを渡しますか?")) actions.transferHost(p.id);
-                }}>HOST譲渡</button>
-              )}
-              {p.word && (
-                <div className="wordline"><span className="q">💬</span>{p.word}</div>
-              )}
+            <div key={c.pid + "-" + c.num} className={"brow" + (c.failed ? " ng" : "")}>
+              <span className="bnum">{c.num}</span>
+              <div className="bbody">
+                <div className={"bword" + (w ? "" : " empty")}>{w || "(たとえワードなし)"}</div>
+                <div className="bname">{c.failed ? "✕ " : ""}{c.name}</div>
+              </div>
             </div>
           );
         })}
@@ -613,122 +1201,256 @@ function PlayerList({room}) {
   );
 }
 
-function ResultBanner({room}) {
-  if (room.phase !== "result") return null;
-  const miss = (room.board || []).filter((c) => c.failed).length;
-  const perfect = miss === 0;
+function PlayScreen({room, roomId, isHost}) {
+  const me = room.players && room.players[pid];
   return (
-    <div className={"panel result " + (perfect ? "clear" : "fail")}>
-      <div className="big-txt">{perfect ? "パーフェクト!🎉" : "クリア!"}</div>
-      <div className="desc">
-        {perfect
-          ? "全員のカードを順番どおりに出し切りました!"
-          : "ミス " + miss + " 回。次はパーフェクトを狙おう!"}
+    <div className="screen">
+      <ThemeBar room={room} roomId={roomId} />
+      <div className="grid3">
+        <div className="pcol">
+          <MyCardPC me={me} />
+          <div className="panel pc-ctrl">
+            {isHost ? (
+              <button className="btn sm ghost" onClick={actions.toLobby}>ラウンドを中断してメインメニューへ</button>
+            ) : (
+              <React.Fragment>
+                <span className="note">進行はホストにおまかせ中。</span>
+                <HostRecovery room={room} />
+              </React.Fragment>
+            )}
+            <LeaveButton />
+          </div>
+        </div>
+        <WordBoard room={room} />
+        <PlayedBoard room={room} />
       </div>
     </div>
   );
 }
 
+/* メインメニュー左: プレイヤー一覧 */
+function PlayerList({room}) {
+  const list = sortedPlayers(room.players);
+  return (
+    <div className="panel pcol-panel">
+      <div className="label">プレイヤー({list.length}人)</div>
+      <div className="pscroll">
+        {list.map((p) => (
+          <div key={p.id} className={"prow" + (p.id === pid ? " me" : "")}>
+            <span className="nm">{p.name}</span>
+            {p.id === room.hostId && <span className="host-mark">HOST</span>}
+            <span className="sp" />
+            {(p.proposal || "").trim() && <span className="st prop">📝 候補済</span>}
+            {room.hostId === pid && p.id !== pid && (
+              <button className="btn sm ghost" onClick={() => {
+                if (window.confirm(p.name + " にHOSTを渡しますか?")) actions.transferHost(p.id);
+              }}>HOST譲渡</button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* メインメニュー右: ホストパネル */
 function HostPanel({room, isHost}) {
   const [theme, setTheme] = useState("");
   const [dangerOpen, setDangerOpen] = useState(false);
 
   if (!isHost) {
-    const hostAlive = room.hostId && room.players && room.players[room.hostId];
+    const host = room.players && room.players[room.hostId];
     return (
-      <div className="panel">
-        <p className="note">
-          {room.phase === "lobby"
-            ? "ホストがお題を入力してゲームを開始するのを待っています…"
-            : "進行はホストにおまかせ中。"}
-        </p>
-        {!hostAlive && (
-          <button className="btn sm ghost" onClick={actions.becomeHost}>
-            ホストが不在のようです → 自分がホストになる
-          </button>
-        )}
+      <div className="panel side-ctrl">
+        <div className="label">ホストパネル</div>
+        <div className="watch-msg">
+          ⏳<br />お題候補を登録して、<br />{(host ? host.name + " さん" : "ホスト")}のスタートを待ちましょう…
+        </div>
+        <span className="sp" />
+        <HostRecovery room={room} />
       </div>
     );
   }
 
   const canDeal = theme.trim().length > 0;
-  const dealLabel = room.phase === "lobby" ? "配ってスタート!" : "このお題で次のラウンド!";
+  const botCount = Object.values(room.players || {}).filter((p) => p.bot).length;
+  const candCount = candidates(room.players).length;
+  const deal = () => { if (canDeal) { actions.deal(theme.trim()); setTheme(""); } };
 
   return (
-    <div className="panel">
+    <div className="panel pcol-panel">
       <div className="label">ホストパネル</div>
-      {room.phase !== "playing" && (
-        <React.Fragment>
+      <div className="pscroll">
+        <div>
+          <div className="label">お題を直接入力して決める</div>
           <input type="text" maxLength={60} placeholder="お題を入力(例: コンビニで人気の商品)"
             value={theme} onChange={(e) => setTheme(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && canDeal) { actions.deal(theme.trim()); setTheme(""); } }} />
+            onKeyDown={(e) => { if (e.key === "Enter") deal(); }} />
           <div style={{height: 8}} />
-          <div className="row wrap">
+          <div className="row">
             <span className="sp" />
-            <button className="btn" disabled={!canDeal}
-              onClick={() => { actions.deal(theme.trim()); setTheme(""); }}>
-              {dealLabel}
-            </button>
+            <button className="btn" disabled={!canDeal} onClick={deal}>配ってスタート!</button>
           </div>
-          {room.phase === "result" && (
-            <React.Fragment>
-              <div style={{height: 8}} />
-              <button className="btn sm ghost" onClick={actions.toLobby}>ロビーに戻す</button>
-            </React.Fragment>
+        </div>
+        <hr className="hr" style={{margin: "4px 0"}} />
+        <div>
+          <div className="label">お題候補から決める</div>
+          <button className="btn big pink" disabled={candCount === 0} onClick={actions.openSelect}>
+            📋 お題一覧をみる({candCount}件)
+          </button>
+          <div style={{height: 6}} />
+          <p className="note" style={{margin: 0}}>
+            全員の画面が一覧に切り替わります。ルーレットか選択で決めます(操作はホストのみ)。
+          </p>
+        </div>
+        <hr className="hr" style={{margin: "4px 0"}} />
+        <div>
+          <div className="label">ひとりで動作確認(テスト用プレイヤー)</div>
+          <div className="row wrap">
+            <button className="btn sm ghost" onClick={actions.addBot}>🤖 テスト用プレイヤーを追加</button>
+            {botCount > 0 && (
+              <button className="btn sm ghost" onClick={actions.removeBots}>全員外す({botCount})</button>
+            )}
+          </div>
+          <div style={{height: 6}} />
+          <p className="note" style={{margin: 0}}>
+            お題候補を自動で出します。ラウンド中は「代わりに出す」で操作できます。
+            HOST譲渡も試せます(渡した後は「取り戻す」ボタンが出ます)。
+          </p>
+        </div>
+        <hr className="hr" style={{margin: "4px 0"}} />
+        {dangerOpen ? (
+          <div className="row wrap">
+            <span className="note">全員退出してまっさらに戻します。いい?</span>
+            <button className="btn sm warn" onClick={() => { setDangerOpen(false); actions.resetAll(); }}>部屋を初期化</button>
+            <button className="btn sm ghost" onClick={() => setDangerOpen(false)}>やめる</button>
+          </div>
+        ) : (
+          <div><button className="btn sm ghost" onClick={() => setDangerOpen(true)}>部屋を初期化…</button></div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* メインメニュー: プレイヤー一覧 | お題候補の登録 | ホストパネル */
+function LobbyScreen({room, roomId, isHost}) {
+  return (
+    <div className="screen">
+      <TopBar room={room} roomId={roomId} title="メインメニュー" />
+      <div className="grid-lobby">
+        <PlayerList room={room} />
+        <div className="pcol">
+          <ProposalPanel room={room} />
+          <div className="panel pcol-panel" style={{flex: 1}}>
+            <div className="label">あそびかた</div>
+            <div className="pscroll"><HowTo /></div>
+          </div>
+        </div>
+        <HostPanel room={room} isHost={isHost} />
+      </div>
+    </div>
+  );
+}
+
+/* 結果画面(ホスト): 次のお題を直接入力 / 一覧から選ぶ */
+function NextRoundHost({candCount}) {
+  const [theme, setTheme] = useState("");
+  const canDeal = theme.trim().length > 0;
+  const deal = () => { if (canDeal) { actions.deal(theme.trim()); setTheme(""); } };
+  return (
+    <div className="panel pc-ctrl next-host">
+      <div className="label">次のお題(ホスト)</div>
+      <div className="row" style={{width: "100%"}}>
+        <input type="text" maxLength={60} style={{flex: 1, minWidth: 0}} placeholder="お題を直接入力"
+          value={theme} onChange={(e) => setTheme(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") deal(); }} />
+        <button className="btn" style={{flex: "0 0 auto"}} disabled={!canDeal} onClick={deal}>開始</button>
+      </div>
+      <button className="btn pink" style={{width: "100%"}} disabled={candCount === 0} onClick={actions.openSelect}>
+        📋 お題一覧をみる({candCount}件)
+      </button>
+      <div className="row wrap">
+        <button className="btn sm ghost" onClick={actions.toLobby}>メインメニューへ</button>
+        <LeaveButton />
+      </div>
+    </div>
+  );
+}
+
+/* 結果画面: 結果と次の操作 | 答え合わせ(小さい順) | 出した順 */
+function ResultScreen({room, roomId, isHost}) {
+  const board = room.board || [];
+  const miss = board.filter((c) => c.failed).length;
+  const perfect = miss === 0;
+  const answer = board.slice().sort((a, b) => a.num - b.num);
+  const wordOf = (c) => { const p = room.players && room.players[c.pid]; return (p && p.word) || ""; };
+  const candCount = candidates(room.players).length;
+  return (
+    <div className="screen">
+      <ThemeBar room={room} roomId={roomId} />
+      <div className="grid3">
+        <div className="pcol">
+          <div className={"panel result " + (perfect ? "clear" : "fail")}>
+            <div className="big-txt">{perfect ? "パーフェクト!🎉" : "クリア!"}</div>
+            <div className="desc">
+              {perfect ? "全員のカードを順番どおりに出し切りました!" : "ミス " + miss + " 回。次はパーフェクトを狙おう!"}
+            </div>
+          </div>
+          <ProposalPanel room={room} title="次のお題候補を登録" compact />
+          {isHost ? <NextRoundHost candCount={candCount} /> : (
+            <div className="panel pc-ctrl">
+              <span className="note">ホストが次のお題を準備中…</span>
+              <HostRecovery room={room} />
+              <LeaveButton />
+            </div>
           )}
-        </React.Fragment>
-      )}
-      {room.phase === "playing" && (
-        <div className="row wrap">
-          <button className="btn sm ghost" onClick={actions.toLobby}>ラウンドを中断してロビーへ</button>
         </div>
-      )}
-      <hr className="hr" />
-      {dangerOpen ? (
-        <div className="row wrap">
-          <span className="note">全員退出してまっさらに戻します。いい?</span>
-          <button className="btn sm warn" onClick={() => { setDangerOpen(false); actions.resetAll(); }}>部屋を初期化</button>
-          <button className="btn sm ghost" onClick={() => setDangerOpen(false)}>やめる</button>
+
+        <div className="panel pcol-panel">
+          <div className="label">答え合わせ(小さい順)</div>
+          <div className="pscroll">
+            {answer.map((c) => (
+              <div key={c.pid + "-" + c.num} className={"arow" + (c.failed ? " ng" : "")}>
+                <span className="anum">{c.num}</span>
+                <div className="mbody">
+                  <div className="mname">{c.failed ? "✕ " : ""}{c.name}</div>
+                  <div className={"mword" + (wordOf(c) ? "" : " empty")}>{wordOf(c) || "(たとえワードなし)"}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      ) : (
-        <button className="btn sm ghost" onClick={() => setDangerOpen(true)}>部屋を初期化…</button>
-      )}
+
+        <div className="panel pcol-panel">
+          <div className="label">出した順</div>
+          <div className="pscroll">
+            {board.map((c, i) => (
+              <div key={c.pid + "-" + c.num} className={"trow" + (c.failed ? " ng" : "")}>
+                <span className="ti">{i + 1}</span>
+                <span className="tn">{c.name}</span>
+                <span className="sp" />
+                <span className="tv">{c.failed ? "✕ " : ""}{c.num}</span>
+              </div>
+            ))}
+          </div>
+          <p className="note" style={{margin: "8px 0 0"}}>✕ は自分より大きい数字が先に出てしまったカードです。</p>
+        </div>
+      </div>
     </div>
   );
 }
 
 /* ============ ルーム画面 ============ */
 function Room({room, roomId}) {
-  const me = room.players && room.players[pid];
   const isHost = room.hostId === pid;
-  const inRound = room.phase === "playing" || room.phase === "result";
-  const missCount = (room.board || []).filter((c) => c.failed).length;
-
+  const ph = room.phase;
   return (
     <div>
-      <Logo />
-      <div className="status">
-        <div className="row">
-          <span className="round-chip" style={{background: "var(--teal-dk)"}}>🏠 {roomId}</span>
-          <span className="round-chip">ROUND {room.round || 0}</span>
-        </div>
-        {missCount > 0 && <span className="round-chip miss">✕ ミス {missCount}</span>}
-      </div>
-
-      <ResultBanner room={room} />
-      {inRound && <ThemeCard theme={room.theme} />}
-      {room.phase === "playing" && <MyCard me={me} phase={room.phase} onPlay={actions.playCard} />}
-      {room.phase === "playing" && <WordInput me={me} />}
-      {room.phase === "playing" && <OrderBoard room={room} />}
-      {inRound && <ThreadBoard board={room.board} />}
-      <PlayerList room={room} />
-      <HostPanel room={room} isHost={isHost} />
-
-      <div className="foot">
-        <button className="btn sm ghost" onClick={() => {
-          if (window.confirm("部屋から退出しますか?")) actions.leave();
-        }}>退出する</button>
-      </div>
+      {ph === "playing" ? <PlayScreen room={room} roomId={roomId} isHost={isHost} />
+        : ph === "result" ? <ResultScreen room={room} roomId={roomId} isHost={isHost} />
+        : ph === "select" ? <SelectScreen room={room} roomId={roomId} isHost={isHost} />
+        : <LobbyScreen room={room} roomId={roomId} isHost={isHost} />}
     </div>
   );
 }
@@ -754,7 +1476,7 @@ function App() {
   }, [roomId]);
 
   if (!CONFIG_OK) return <ConfigError />;
-  if (loading) return <div><Logo /><div className="panel"><p className="note">接続中…</p></div></div>;
+  if (loading) return <CenterScreen><div className="panel"><p className="note" style={{margin: 0}}>接続中…</p></div></CenterScreen>;
 
   const joined = roomId && room && room.players && room.players[pid];
   if (!joined) {
