@@ -632,14 +632,16 @@ const actions = {
     roomRef.update({["players." + pid + ".proposal"]: t}).catch(() => {});
   },
   playCard() { return playCardAs(pid, false); },
-  /* 作戦ボードの並びを丸ごと保存(ドラッグ&ドロップ後) */
-  setOrder(ids) {
+  /* 作戦ボード: id の人を to 番目へ移動(サーバー上の最新の並びに対して適用) */
+  moveOrder(id, to) {
     return txRoom((d) => {
       if (d.phase !== "playing") return null;
-      const alive = (x) => { const p = d.players && d.players[x]; return p && p.num != null && !p.played; };
-      const next = ids.filter(alive);
-      Object.keys(d.players || {}).forEach((x) => { if (alive(x) && next.indexOf(x) < 0) next.push(x); });
-      d.order = next;
+      const cur = aliveOrder(d).map((p) => p.id);   // 重複なしの最新の並び
+      const i = cur.indexOf(id);
+      if (i < 0) return null;
+      cur.splice(i, 1);
+      cur.splice(Math.max(0, Math.min(to, cur.length)), 0, id);
+      d.order = cur;
       return d;
     });
   },
@@ -1023,14 +1025,14 @@ function SelectScreen({room, roomId, isHost}) {
 
 /* 作戦ボードの並び(まだ出していない人) */
 function aliveOrder(room) {
-  const alive = [];
-  (room.order || []).forEach((id) => {
+  const alive = [], seen = {};
+  const add = (id) => {
+    if (seen[id]) return;                      // 同じ人を2回並べない
     const p = room.players && room.players[id];
-    if (p && p.num != null && !p.played) alive.push({id: id, ...p});
-  });
-  Object.entries(room.players || {}).forEach(([id, p]) => {
-    if (p.num != null && !p.played && !alive.some((a) => a.id === id)) alive.push({id: id, ...p});
-  });
+    if (p && p.num != null && !p.played) { seen[id] = true; alive.push({id: id, ...p}); }
+  };
+  (room.order || []).forEach(add);
+  Object.keys(room.players || {}).forEach(add);
   return alive;
 }
 
@@ -1093,14 +1095,21 @@ function WordBoard({room}) {
   const [drag, setDrag] = useState(null);      // {id, from, to, startY, dy, rects, shift}
   const [pending, setPending] = useState(null); // 保存待ちの並び(サーバー反映までのチラつき防止)
   const listRef = useRef(null);
+  const seq = useRef(0);
   const orderKey = JSON.stringify(room.order || []);
   useEffect(() => { setPending(null); }, [orderKey]);
 
+  const byIds = (arr, ids) => {
+    const pos = (id) => { const k = ids.indexOf(id); return k < 0 ? 999 : k; };
+    return arr.slice().sort((a, b) => pos(a.id) - pos(b.id));
+  };
   let list = aliveOrder(room);
-  if (pending) {
-    const pos = (id) => { const k = pending.indexOf(id); return k < 0 ? 999 : k; };
-    list = list.slice().sort((a, b) => pos(a.id) - pos(b.id));
-  }
+  if (pending) list = byIds(list, pending);
+  if (drag) list = byIds(list, drag.ids);    // ドラッグ中は他の人の並べ替えが届いても並びを固定
+
+  /* ドラッグ中に誰かがカードを出した(メンバーが変わった)らドラッグを取り消す */
+  const memberKey = list.map((p) => p.id).sort().join(",");
+  useEffect(() => { if (drag && drag.memberKey !== memberKey) setDrag(null); }, [memberKey]);
 
   /* ---- ドラッグ&ドロップ(マウスは行のどこでも / タッチは左のつまみ) ---- */
   function onDown(e, id, idx) {
@@ -1112,7 +1121,8 @@ function WordBoard({room}) {
     const gap = rects.length > 1 ? rects[1].top - rects[0].bottom : 8;
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
     e.preventDefault();
-    setDrag({id: id, from: idx, to: idx, startY: e.clientY, dy: 0, rects: rects, shift: rects[idx].height + gap});
+    setDrag({id: id, from: idx, to: idx, startY: e.clientY, dy: 0, rects: rects, shift: rects[idx].height + gap,
+      ids: list.map((p) => p.id), memberKey: memberKey});
   }
   function onMove(e) {
     if (!drag) return;
@@ -1128,11 +1138,13 @@ function WordBoard({room}) {
     const {from, to, id} = drag;
     setDrag(null);
     if (from === to) return;
-    const ids = list.map((p) => p.id);
-    ids.splice(from, 1);
+    const ids = drag.ids.filter((x) => x !== id);   // 番号ではなく「人」で取り除く
     ids.splice(to, 0, id);
     setPending(ids);
-    actions.setOrder(ids);
+    const my = ++seq.current;
+    Promise.resolve(actions.moveOrder(id, to)).then(() => {
+      setTimeout(() => { if (seq.current === my) setPending(null); }, 1500);
+    });
   }
   /* ドラッグ中の見た目上の位置 */
   function visualIndex(i) {
