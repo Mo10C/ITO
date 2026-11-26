@@ -144,6 +144,24 @@
   .st.ng{background:var(--red); color:#fff;}
   .st.nonum{background:#fff; color:var(--muted); border:1.5px dashed var(--muted);}
   .st.bot{background:#EEE8FF; color:#5B3FB0;}
+  .round-chip{white-space:nowrap;}
+  .round-chip.anon{background:#5B3FB0;}
+  .anon-tag{display:inline-block; background:#5B3FB0; color:#fff; border-radius:999px; padding:0 9px; margin-left:8px; font-size:11px;}
+  .next-host .anon-toggle{padding:5px 10px;}
+  .next-host .anon-toggle .at-label{font-size:13px;}
+  .you-mark{font-size:11px; font-weight:800; background:var(--teal); color:#fff; border-radius:6px; padding:1px 7px;}
+  .anon-toggle{font-family:inherit; display:flex; align-items:center; gap:10px; width:100%; cursor:pointer;
+    border:2px solid rgba(23,49,46,.25); border-radius:12px; background:#FBFDFC; padding:8px 12px; color:var(--ink);}
+  .anon-toggle .at-label{flex:1; text-align:left; font-size:14px; font-weight:800;}
+  .anon-toggle .at-switch{flex:0 0 46px; height:26px; border-radius:999px; background:#C9D6D3;
+    border:2px solid var(--ink); position:relative; transition:background .15s;}
+  .anon-toggle .at-knob{position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%;
+    background:#fff; border:2px solid var(--ink); transition:left .15s;}
+  .anon-toggle .at-state{flex:0 0 30px; font-size:12px; font-weight:800; color:var(--muted);}
+  .anon-toggle.on{border-color:#5B3FB0; background:#F1ECFF;}
+  .anon-toggle.on .at-switch{background:#7C5CE0;}
+  .anon-toggle.on .at-knob{left:22px;}
+  .anon-toggle.on .at-state{color:#5B3FB0;}
   .st.prop{background:#FFF6DC; color:#8A6A00; border:1.5px solid rgba(138,106,0,.3);}
 
   /* 結果バナー */
@@ -398,6 +416,7 @@ const EMPTY_ROOM = {
   roulette: null,        // 一覧画面で回転中のルーレット {id, items:[{pid,name,text}], pick, at}
   round: 0,
   hostId: "",
+  anonymous: false,      // 匿名モード(プレイ中は名前を隠し、結果で公開)
   players: {},           // {pid: {name, joined, num, played, failed, word, proposal}}
   order: [],             // 作戦ボード: 予想順(小さい順)のpid配列
   board: []              // [{pid, name, num, failed}] 出された順
@@ -660,6 +679,14 @@ const actions = {
   resetAll() {
     return txRoom(() => JSON.parse(JSON.stringify(EMPTY_ROOM)));
   },
+  /* ホスト: 匿名モードの切り替え(ラウンド中は変更不可) */
+  setAnonymous(on) {
+    return txRoom((d) => {
+      if (d.phase === "playing") return null;
+      d.anonymous = !!on;
+      return d;
+    });
+  },
   setWord(w) {
     if (!db) return;
     roomRef.update({["players." + pid + ".word"]: w}).catch(() => {});
@@ -782,12 +809,31 @@ function HowToLink({big}) {
   );
 }
 
-function RoomChips({room, roomId}) {
+/* 匿名モード中、名前を隠す画面か(結果画面では公開) */
+function hideNames(room) {
+  return !!room.anonymous && room.phase !== "result";
+}
+
+function RoomChips({room, roomId, noAnon}) {
   return (
     <React.Fragment>
       <span className="round-chip" style={{background: "var(--teal-dk)"}}>🏠 {roomId}</span>
       <span className="round-chip">ROUND {room.round || 0}</span>
+      {room.anonymous && !noAnon && <span className="round-chip anon">🎭 匿名モード</span>}
     </React.Fragment>
+  );
+}
+
+/* ホスト用: 匿名モード切り替えスイッチ */
+function AnonToggle({room}) {
+  const on = !!room.anonymous;
+  return (
+    <button type="button" className={"anon-toggle" + (on ? " on" : "")}
+      onClick={() => actions.setAnonymous(!on)} aria-pressed={on}>
+      <span className="at-label">🎭 匿名モード</span>
+      <span className="at-switch"><span className="at-knob" /></span>
+      <span className="at-state">{on ? "ON" : "OFF"}</span>
+    </button>
   );
 }
 
@@ -819,13 +865,17 @@ function ThemeBar({room, roomId}) {
   return (
     <div className="play-top">
       <div className="play-side">
-        <RoomChips room={room} roomId={roomId} />
+        <RoomChips room={room} roomId={roomId} noAnon />
       </div>
       <div className="play-theme">
         <div className="label">お題</div>
         <div className="txt">{room.theme || "(お題なし)"}</div>
-        {room.themeBy && (
-          <div className="by">{room.themeVia === "roulette" ? "🎰 ルーレットで決定" : "👉 ホストが選択"} / {room.themeBy} さんの候補</div>
+        {(room.themeBy || room.anonymous) && (
+          <div className="by">
+            {room.themeBy && (room.themeVia === "roulette" ? "🎰 ルーレットで決定" : "👉 ホストが選択")}
+            {room.themeBy && !hideNames(room) ? " / " + room.themeBy + " さんの候補" : ""}
+            {room.anonymous && <span className="anon-tag">🎭 匿名モード{room.phase === "result" ? "(名前を公開中)" : ""}</span>}
+          </div>
         )}
       </div>
       <div className="play-side right">
@@ -969,7 +1019,7 @@ function SelectScreen({room, roomId, isHost}) {
                 {list.map((p, i) => (
                   <div key={p.pid} className={tileClass(i)}>
                     <div className="tile-txt">{p.text}</div>
-                    <div className="tile-by">by {p.name}</div>
+                    {!hideNames(room) && <div className="tile-by">by {p.name}</div>}
                     {isHost && !spinning && (
                       <button className="btn sm" onClick={() => pick(p)}>これに決定</button>
                     )}
@@ -987,7 +1037,7 @@ function SelectScreen({room, roomId, isHost}) {
                 {cur && (
                   <div key={st.step} className="rl-tick">
                     <div className="rl-txt">{cur.text}</div>
-                    <div className="rl-by">by {cur.name}</div>
+                    {!hideNames(room) && <div className="rl-by">by {cur.name}</div>}
                   </div>
                 )}
               </div>
@@ -1176,8 +1226,10 @@ function WordBoard({room}) {
             <span className="rank">{visualIndex(i) + 1}</span>
             <div className="mbody">
               <div className="mname">
-                {p.name}
-                {p.id === room.hostId && <span className="host-mark">HOST</span>}
+                {hideNames(room)
+                  ? (p.id === pid ? <span className="you-mark">あなた</span> : (p.bot ? "🤖" : null))
+                  : p.name}
+                {!hideNames(room) && p.id === room.hostId && <span className="host-mark">HOST</span>}
                 {p.bot && <span className="st bot">#{p.num}</span>}
               </div>
               <div className={"mword" + (p.word ? "" : " empty")}>{p.word || "(考え中…)"}</div>
@@ -1217,7 +1269,10 @@ function PlayedBoard({room}) {
               <span className="bnum">{c.num}</span>
               <div className="bbody">
                 <div className={"bword" + (w ? "" : " empty")}>{w || "(たとえワードなし)"}</div>
-                <div className="bname">{c.failed ? "✕ " : ""}{c.name}</div>
+                <div className="bname">
+                  {c.failed ? "✕ " : ""}
+                  {hideNames(room) ? (c.pid === pid ? "あなた" : (c.failed ? "ミス" : "")) : c.name}
+                </div>
               </div>
             </div>
           );
@@ -1320,13 +1375,20 @@ function HostPanel({room, isHost}) {
         </div>
         <hr className="hr" style={{margin: "4px 0"}} />
         <div>
+          <AnonToggle room={room} />
+          <p className="note" style={{margin: "4px 0 0"}}>
+            プレイ中は名前を隠し、結果画面で公開します。
+          </p>
+        </div>
+        <hr className="hr" style={{margin: "4px 0"}} />
+        <div>
           <div className="label">お題候補から決める</div>
           <button className="btn big pink" disabled={candCount === 0} onClick={actions.openSelect}>
             📋 お題一覧をみる({candCount}件)
           </button>
           <div style={{height: 6}} />
           <p className="note" style={{margin: 0}}>
-            全員の画面が一覧に切り替わります。ルーレットか選択で決めます(操作はホストのみ)。
+            全員の画面が一覧に切り替わります(操作はホストのみ)。
           </p>
         </div>
         <hr className="hr" style={{margin: "4px 0"}} />
@@ -1340,8 +1402,7 @@ function HostPanel({room, isHost}) {
           </div>
           <div style={{height: 6}} />
           <p className="note" style={{margin: 0}}>
-            お題候補を自動で出します。ラウンド中は「代わりに出す」で操作できます。
-            HOST譲渡も試せます(渡した後は「取り戻す」ボタンが出ます)。
+            お題候補を自動で出し、ゲーム中は「代わりに出す」で操作できます。
           </p>
         </div>
         <hr className="hr" style={{margin: "4px 0"}} />
@@ -1380,7 +1441,7 @@ function LobbyScreen({room, roomId, isHost}) {
 }
 
 /* 結果画面(ホスト): 次のお題を直接入力 / 一覧から選ぶ */
-function NextRoundHost({candCount}) {
+function NextRoundHost({room, candCount}) {
   const [theme, setTheme] = useState("");
   const canDeal = theme.trim().length > 0;
   const deal = () => { if (canDeal) { actions.deal(theme.trim()); setTheme(""); } };
@@ -1396,6 +1457,7 @@ function NextRoundHost({candCount}) {
       <button className="btn pink" style={{width: "100%"}} disabled={candCount === 0} onClick={actions.openSelect}>
         📋 お題一覧をみる({candCount}件)
       </button>
+      <AnonToggle room={room} />
       <div className="row wrap">
         <button className="btn sm ghost" onClick={actions.toLobby}>メインメニューへ</button>
         <LeaveButton />
@@ -1424,7 +1486,7 @@ function ResultScreen({room, roomId, isHost}) {
             </div>
           </div>
           <ProposalPanel room={room} title="次のお題候補を登録" compact />
-          {isHost ? <NextRoundHost candCount={candCount} /> : (
+          {isHost ? <NextRoundHost room={room} candCount={candCount} /> : (
             <div className="panel pc-ctrl">
               <span className="note">ホストが次のお題を準備中…</span>
               <HostRecovery room={room} />
